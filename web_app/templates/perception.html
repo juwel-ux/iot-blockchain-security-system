@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Perception Layer - Secure IoT Device Registration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 100%);
+            color: #c9d1d9;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(88,166,255,0.04) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveGrid 20s linear infinite;
+        }
+
+        .bg-animation::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(88,166,255,0.02) 0%, transparent 70%);
+            animation: rotateGradient 20s ease infinite;
+        }
+
+        @keyframes moveGrid {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        @keyframes rotateGradient {
+            0% { transform: rotate(0deg) scale(1); opacity: 0.3; }
+            50% { transform: rotate(180deg) scale(1.5); opacity: 0.5; }
+            100% { transform: rotate(360deg) scale(1); opacity: 0.3; }
+        }
+
+        /* Floating Orbs */
+        .orb-1, .orb-2, .orb-3 {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.3;
+            animation: float 25s ease-in-out infinite;
+        }
+
+        .orb-1 { width: 400px; height: 400px; background: #1f6feb; top: -150px; right: -100px; animation-delay: 0s; }
+        .orb-2 { width: 350px; height: 350px; background: #2ea043; bottom: -100px; left: -100px; animation-delay: 5s; }
+        .orb-3 { width: 300px; height: 300px; background: #da3633; bottom: 20%; right: 10%; animation-delay: 10s; opacity: 0.15; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -30px) scale(1.05); }
+            66% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+
+        h1 {
+            text-align: center;
+            color: #58a6ff;
+            margin-top: 35px;
+            font-size: 2.2rem;
+            text-shadow: 0 0 10px rgba(88,166,255,0.3);
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #8b949e;
+            margin-top: 8px;
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+        }
+
+        /* Navigation */
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+            padding: 0 20px;
+        }
+
+        .nav-btn {
+            background: rgba(22, 27, 34, 0.8);
+            backdrop-filter: blur(8px);
+            color: #58a6ff;
+            border: 1px solid rgba(88,166,255,0.3);
+            padding: 10px 22px;
+            cursor: pointer;
+            border-radius: 40px;
+            font-weight: 600;
+            text-decoration: none;
+            text-align: center;
+            display: inline-block;
+            transition: all 0.3s ease;
+            font-size: 13px;
+        }
+
+        .nav-btn:hover {
+            background: #58a6ff;
+            color: #0d1117;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(88,166,255,0.3);
+            border-color: #58a6ff;
+        }
+
+        /* Container */
+        .container {
+            display: flex;
+            justify-content: center;
+            padding: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            width: 100%;
+            background: rgba(22, 27, 34, 0.6);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            border: 1px solid rgba(88,166,255,0.15);
+            padding: 32px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(88,166,255,0.35);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        }
+
+        .section-header span {
+            font-size: 24px;
+        }
+
+        .section-header h2 {
+            font-size: 1.1rem;
+            color: #58a6ff;
+            font-weight: 600;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #e6edf3;
+            display: block;
+            margin-bottom: 10px;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .radio-card {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            background: rgba(13, 17, 23, 0.5);
+            border: 1px solid rgba(48, 54, 61, 0.5);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .radio-card:hover {
+            background: rgba(88,166,255,0.08);
+            border-color: #58a6ff;
+        }
+
+        .radio-card.selected {
+            background: rgba(88,166,255,0.12);
+            border-color: #58a6ff;
+            box-shadow: 0 0 15px rgba(88,166,255,0.1);
+        }
+
+        .radio-icon {
+            font-size: 28px;
+        }
+
+        .radio-content {
+            flex: 1;
+        }
+
+        .radio-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .radio-desc {
+            font-size: 10px;
+            color: #8b949e;
+            margin-top: 2px;
+        }
+
+        input[type="radio"] {
+            display: none;
+        }
+
+        /* Password Field - Auto-fill Complete Disabled */
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper input {
+            width: 100%;
+            padding: 14px 18px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-family: monospace;
+        }
+
+        .password-wrapper input:focus {
+            outline: none;
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 3px rgba(88,166,255,0.1);
+        }
+
+        /* Remove autofill background color */
+        .password-wrapper input:-webkit-autofill,
+        .password-wrapper input:-webkit-autofill:hover,
+        .password-wrapper input:-webkit-autofill:focus,
+        .password-wrapper input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #0d1117 inset !important;
+            -webkit-text-fill-color: #e6edf3 !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #8b949e;
+            font-size: 18px;
+        }
+
+        .password-strength {
+            margin-top: 10px;
+        }
+
+        .strength-meter {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .strength-segment {
+            flex: 1;
+            height: 4px;
+            background: #30363d;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .strength-segment.active-weak { background: #f85149; }
+        .strength-segment.active-medium { background: #f0883e; }
+        .strength-segment.active-strong { background: #2ea043; }
+
+        .strength-text {
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        /* Arduino Section */
+        .arduino-section {
+            background: rgba(13, 17, 23, 0.4);
+            border-radius: 24px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid rgba(48, 54, 61, 0.3);
+        }
+
+        .port-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .port-selector select {
+            flex: 2;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 16px;
+            padding: 12px;
+            color: #e6edf3;
+            font-size: 13px;
+        }
+
+        .detect-btn {
+            flex: 1;
+            background: rgba(31, 111, 235, 0.2);
+            border: 1px solid #58a6ff;
+            border-radius: 16px;
+            padding: 12px;
+            color: #58a6ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .detect-btn:hover {
+            background: #1f6feb;
+            color: white;
+        }
+
+        .device-status {
+            margin-top: 15px;
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 12px;
+        }
+
+        .status-success {
+            background: rgba(46, 160, 67, 0.1);
+            border: 1px solid rgba(46, 160, 67, 0.3);
+        }
+
+        .status-error {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+        }
+
+        .status-warning {
+            background: rgba(240, 136, 62, 0.1);
+            border: 1px solid rgba(240, 136, 62, 0.3);
+        }
+
+        /* Info Cards */
+        .info-card {
+            background: rgba(13, 17, 23, 0.5);
+            border-radius: 20px;
+            padding: 16px;
+            margin: 15px 0;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .info-icon {
+            font-size: 20px;
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-title {
+            font-weight: 600;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .info-text {
+            font-size: 11px;
+            color: #8b949e;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #1f6feb, #58a6ff);
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(31, 111, 235, 0.4);
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #238636, #2ea043);
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(46, 160, 67, 0.4);
+        }
+
+        /* Output Box */
+        .output-box {
+            background: rgba(13, 17, 23, 0.5);
+            border-radius: 24px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid rgba(48, 54, 61, 0.3);
+        }
+
+        .output-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+        }
+
+        .output-header span {
+            font-size: 18px;
+        }
+
+        .output-header h3 {
+            color: #2ea043;
+            font-size: 0.9rem;
+        }
+
+        .output-line {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.1);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.6rem; margin-top: 20px; }
+            .container { padding: 15px; }
+            .glass-card { padding: 20px; }
+            .radio-card { padding: 10px 15px; }
+            .radio-icon { font-size: 22px; }
+            .port-selector { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-animation"></div>
+<div class="orb-1"></div>
+<div class="orb-2"></div>
+<div class="orb-3"></div>
+
+<h1>🔐 Perception Layer</h1>
+<div class="subtitle">Secure IoT Device Registration · End-to-End Encryption</div>
+
+<!-- Navigation -->
+<div class="nav-buttons">
+    <a href="/" class="nav-btn">🏠 Home</a>
+    <a href="/edge" class="nav-btn">⚡ Edge Layer</a>
+    <a href="/network" class="nav-btn">🌐 Network Layer</a>
+    <a href="/blockchain" class="nav-btn">🔗 Blockchain Layer</a>
+    <a href="/application" class="nav-btn">📱 Application Layer</a>
+</div>
+
+<div class="container">
+    <div class="glass-card">
+        <form method="POST" id="registrationForm">
+            <!-- Device Type Selection -->
+            <div class="section-header">
+                <span>🔧</span>
+                <h2>Select Device Type</h2>
+            </div>
+            
+            <div class="form-group">
+                <div class="radio-group">
+                    <label class="radio-card" id="virtualCard" onclick="selectDeviceType('virtual')">
+                        <div class="radio-icon">💻</div>
+                        <div class="radio-content">
+                            <div class="radio-title">Virtual Device</div>
+                            <div class="radio-desc">Software-based IoT simulation</div>
+                        </div>
+                        <input type="radio" name="device_type" value="virtual" checked>
+                    </label>
+                    
+                    <label class="radio-card" id="arduinoCard" onclick="selectDeviceType('real')">
+                        <div class="radio-icon">🔌</div>
+                        <div class="radio-content">
+                            <div class="radio-title">Arduino Real Device</div>
+                            <div class="radio-desc">Physical hardware connection</div>
+                        </div>
+                        <input type="radio" name="device_type" value="real">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Password Field (Complete Auto-fill Disabled) -->
+            <div class="section-header" style="margin-top: 25px;">
+                <span>🔐</span>
+                <h2>Device Encryption Password</h2>
+            </div>
+            
+            <div class="form-group">
+                <div class="password-wrapper">
+                    <input type="password" name="device_password" id="device_password" 
+                           placeholder="Enter a strong password for this device"
+                           autocomplete="new-password"
+                           readonly onfocus="this.removeAttribute('readonly')"
+                           required>
+                    <span class="toggle-password" onclick="togglePassword()">👁️</span>
+                </div>
+                <div class="password-strength">
+                    <div class="strength-meter">
+                        <div class="strength-segment" id="strength1"></div>
+                        <div class="strength-segment" id="strength2"></div>
+                        <div class="strength-segment" id="strength3"></div>
+                    </div>
+                    <div class="strength-text" id="strengthText">Password strength: </div>
+                </div>
+            </div>
+
+            <!-- Arduino Section (Hidden by default) -->
+            <div id="arduinoSection" style="display: none;">
+                <div class="section-header">
+                    <span>🔌</span>
+                    <h2>Arduino Connection Setup</h2>
+                </div>
+                
+                <div class="arduino-section">
+                    <div class="port-selector">
+                        <select name="arduino_port" id="arduino_port">
+                            <option value="">Select or auto-detect port</option>
+                        </select>
+                        <button type="button" class="detect-btn" onclick="detectArduino()">
+                            🔍 Detect
+                        </button>
+                    </div>
+                    
+                    <div id="arduinoStatus" class="device-status status-warning">
+                        <span>⚠️</span> No Arduino detected. Connect your device and click "Detect".
+                    </div>
+                    
+                    <div class="info-card">
+                        <div class="info-icon">💡</div>
+                        <div class="info-content">
+                            <div class="info-title">Arduino Setup Guide</div>
+                            <div class="info-text">1. Connect Arduino via USB<br>2. Upload the provided sketch<br>3. Click "Detect" to auto-configure</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Info -->
+            <div class="info-card">
+                <div class="info-icon">🔒</div>
+                <div class="info-content">
+                    <div class="info-title">Security Notice</div>
+                    <div class="info-text">Your private key will be encrypted with this password and stored securely on the blockchain. Keep this password safe - you'll need it to decrypt messages!</div>
+                </div>
+            </div>
+
+            <input type="hidden" name="step" value="register">
+            
+            <button type="submit" class="btn-primary" style="margin-top: 10px;">
+                📝 Register Device
+            </button>
+        </form>
+
+        <!-- Registration Output -->
+        {% if outputs %}
+        <div class="output-box">
+            <div class="output-header">
+                <span>✅</span>
+                <h3>Device Registration Complete</h3>
+            </div>
+            {% for line in outputs %}
+                <div class="output-line">📌 {{ line }}</div>
+            {% endfor %}
+            <div class="info-card" style="margin-top: 15px; background: rgba(46,160,67,0.05);">
+                <div class="info-icon">🔐</div>
+                <div class="info-content">
+                    <div class="info-title">Private Key Encrypted</div>
+                    <div class="info-text">Your private key has been encrypted with your password. Ready to send to Edge Layer.</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Send to Edge Option -->
+        {% if show_send_option %}
+        <form method="POST" style="margin-top: 20px;" id="sendToEdgeForm">
+            <input type="hidden" name="step" value="send">
+            <div class="section-header">
+                <span>📤</span>
+                <h2>Send to Edge Layer</h2>
+            </div>
+            <div class="radio-group" style="margin-bottom: 20px;">
+                <label class="radio-card" style="flex:1;">
+                    <div class="radio-icon">✅</div>
+                    <div class="radio-content">
+                        <div class="radio-title">Yes, send now</div>
+                        <div class="radio-desc">Process immediately</div>
+                    </div>
+                    <input type="radio" name="send_edge" value="yes" checked>
+                </label>
+                <label class="radio-card" style="flex:1;">
+                    <div class="radio-icon">⏸️</div>
+                    <div class="radio-content">
+                        <div class="radio-title">No, later</div>
+                        <div class="radio-desc">Save for later</div>
+                    </div>
+                    <input type="radio" name="send_edge" value="no">
+                </label>
+            </div>
+            <button type="submit" class="btn-secondary">
+                🚀 Send to Edge Layer
+            </button>
+        </form>
+        {% endif %}
+
+        <!-- Send Output -->
+        {% if send_output %}
+        <div class="output-box" style="margin-top: 20px;">
+            <div class="output-header">
+                <span>📡</span>
+                <h3>Edge Layer Status</h3>
+            </div>
+            {{ send_output|safe }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Device Type Selection UI
+    function selectDeviceType(type) {
+        const virtualCard = document.getElementById('virtualCard');
+        const arduinoCard = document.getElementById('arduinoCard');
+        const virtualRadio = document.querySelector('input[value="virtual"]');
+        const arduinoRadio = document.querySelector('input[value="real"]');
+        const arduinoSection = document.getElementById('arduinoSection');
+        
+        if(type === 'virtual') {
+            virtualCard.classList.add('selected');
+            arduinoCard.classList.remove('selected');
+            virtualRadio.checked = true;
+            arduinoSection.style.display = 'none';
+        } else {
+            arduinoCard.classList.add('selected');
+            virtualCard.classList.remove('selected');
+            arduinoRadio.checked = true;
+            arduinoSection.style.display = 'block';
+        }
+    }
+    
+    // Password Toggle
+    function togglePassword() {
+        const passwordInput = document.getElementById('device_password');
+        const toggleBtn = document.querySelector('.toggle-password');
+        if(passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleBtn.textContent = '🙈';
+        } else {
+            passwordInput.type = 'password';
+            toggleBtn.textContent = '👁️';
+        }
+    }
+    
+    // Password Strength Checker
+    function checkPasswordStrength() {
+        const password = document.getElementById('device_password').value;
+        const strength1 = document.getElementById('strength1');
+        const strength2 = document.getElementById('strength2');
+        const strength3 = document.getElementById('strength3');
+        const strengthText = document.getElementById('strengthText');
+        
+        let strength = 0;
+        
+        if (password.length >= 6) strength++;
+        if (password.length >= 10) strength++;
+        if (/[A-Z]/.test(password)) strength++;
+        if (/[0-9]/.test(password)) strength++;
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
+        
+        strength = Math.min(3, Math.floor(strength / 2));
+        
+        strength1.classList.remove('active-weak', 'active-medium', 'active-strong');
+        strength2.classList.remove('active-weak', 'active-medium', 'active-strong');
+        strength3.classList.remove('active-weak', 'active-medium', 'active-strong');
+        
+        if(password.length === 0) {
+            strengthText.innerHTML = 'Password strength: ';
+        } else if(strength === 1) {
+            strength1.classList.add('active-weak');
+            strengthText.innerHTML = 'Password strength: <span style="color:#f85149;">Weak</span>';
+        } else if(strength === 2) {
+            strength1.classList.add('active-medium');
+            strength2.classList.add('active-medium');
+            strengthText.innerHTML = 'Password strength: <span style="color:#f0883e;">Medium</span>';
+        } else if(strength >= 3) {
+            strength1.classList.add('active-strong');
+            strength2.classList.add('active-strong');
+            strength3.classList.add('active-strong');
+            strengthText.innerHTML = 'Password strength: <span style="color:#2ea043;">Strong ✓</span>';
+        }
+    }
+    
+    // Clear password field completely
+    function clearPasswordField() {
+        const pwdField = document.getElementById('device_password');
+        pwdField.value = '';
+        pwdField.removeAttribute('readonly');
+        checkPasswordStrength();
+    }
+    
+    async function detectArduino() {
+        const statusDiv = document.getElementById('arduinoStatus');
+        statusDiv.innerHTML = "<span>🔍</span> Scanning for Arduino devices...";
+        statusDiv.className = "device-status status-warning";
+        
+        try {
+            const response = await fetch('/api/detect-arduino');
+            const data = await response.json();
+            
+            if (data.detected) {
+                statusDiv.innerHTML = `
+                    <span>✅</span> Arduino Detected!<br>
+                    📱 Device ID: ${data.device_id}<br>
+                    🔌 Port: ${data.port}<br>
+                    ✓ Ready for registration
+                `;
+                statusDiv.className = "device-status status-success";
+                
+                if (data.port) {
+                    const portSelect = document.getElementById('arduino_port');
+                    portSelect.value = data.port;
+                }
+            } else {
+                statusDiv.innerHTML = `
+                    <span>⚠️</span> No Arduino detected.<br>
+                    Please check:<br>
+                    • USB connection<br>
+                    • Arduino is powered on<br>
+                    • Sketch uploaded correctly
+                `;
+                statusDiv.className = "device-status status-error";
+            }
+        } catch (error) {
+            statusDiv.innerHTML = `<span>❌</span> Detection error: ${error.message}`;
+            statusDiv.className = "device-status status-error";
+        }
+    }
+    
+    async function loadSerialPorts() {
+        try {
+            const response = await fetch('/api/serial-ports');
+            const ports = await response.json();
+            const select = document.getElementById('arduino_port');
+            
+            ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.text = port;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading ports:', error);
+        }
+    }
+    
+    // Form Validation and Submit
+    document.getElementById('registrationForm').addEventListener('submit', function(e) {
+        const password = document.getElementById('device_password').value;
+        if(password.length < 6) {
+            e.preventDefault();
+            alert('⚠️ Please enter a password with at least 6 characters!\n\nThis password will encrypt your device\'s private key.');
+            return false;
+        }
+        // Clear password after successful registration
+        setTimeout(clearPasswordField, 100);
+    });
+    
+    // Send to Edge Form Submit Handler
+    const sendForm = document.getElementById('sendToEdgeForm');
+    if(sendForm) {
+        sendForm.addEventListener('submit', function() {
+            setTimeout(clearPasswordField, 500);
+        });
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSerialPorts();
+        const pwdField = document.getElementById('device_password');
+        pwdField.addEventListener('input', checkPasswordStrength);
+        
+        // Remove readonly when clicked
+        pwdField.addEventListener('click', function() {
+            this.removeAttribute('readonly');
+        });
+        
+        // Set default selected card
+        document.getElementById('virtualCard').classList.add('selected');
+        
+        // Clear password field on page load
+        clearPasswordField();
+    });
+</script>
+
+</body>
+</html>

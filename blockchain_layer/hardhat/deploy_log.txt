@@ -1,0 +1,6 @@
+WARNING: You are currently using Node.js v18.20.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+Deploying DeviceRegistry contract...
+✅ DeviceRegistry deployed to: 0x1135F3cAebd33c69B204c21F4D5E3f68cEc563D2
+📁 Contract address saved to contract_address.txt

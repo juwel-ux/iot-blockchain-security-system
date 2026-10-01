@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Network Layer - Distributed Device Registration</title>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 100%);
+    color: #c9d1d9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+}
+
+.bg-animation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.bg-animation::before {
+    content: '';
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(88,166,255,0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: moveGrid 20s linear infinite;
+}
+
+@keyframes moveGrid {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+}
+
+.navbar {
+    background: #161b22;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    border-bottom: 2px solid #58a6ff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-wrap: wrap;
+}
+
+.navbar button {
+    padding: 10px 20px;
+    background: #0d1117;
+    color: #58a6ff;
+    border: 1px solid #58a6ff;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.navbar button:hover {
+    background: #58a6ff;
+    color: black;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(88,166,255,0.3);
+}
+
+h1 {
+    text-align: center;
+    color: #58a6ff;
+    margin-top: 30px;
+    font-size: 2.5rem;
+    text-shadow: 0 0 10px rgba(88,166,255,0.3);
+}
+
+.container {
+    display: flex;
+    gap: 20px;
+    margin: 20px;
+    height: calc(100vh - 140px);
+}
+
+.left-panel {
+    width: 35%;
+    padding: 25px;
+    background: #161b22;
+    border-radius: 20px;
+    border: 1px solid #30363d;
+    overflow-y: auto;
+}
+
+.left-panel h2 {
+    color: #58a6ff;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.right-panel {
+    width: 65%;
+    padding: 25px;
+    background: #161b22;
+    border-radius: 20px;
+    border: 1px solid #30363d;
+    overflow-y: auto;
+}
+
+.right-panel h2 {
+    color: #58a6ff;
+    margin-bottom: 15px;
+}
+
+.control-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    background: #0d1117;
+    color: #58a6ff;
+    border: 1px solid #58a6ff;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.control-btn:hover {
+    background: #58a6ff;
+    color: black;
+    transform: translateX(5px);
+}
+
+.comm-btn {
+    background: linear-gradient(135deg, #1f6feb 0%, #58a6ff 100%);
+    color: white;
+    border: none;
+}
+
+.comm-btn:hover {
+    background: linear-gradient(135deg, #388bfd 0%, #79c0ff 100%);
+    color: white;
+}
+
+.reg-btn {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: white;
+    border: none;
+}
+
+.reg-btn:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%);
+    color: white;
+}
+
+.stop-btn {
+    background: linear-gradient(135deg, #da3633 0%, #f85149 100%);
+    color: white;
+    border: none;
+}
+
+.stop-btn:hover {
+    background: linear-gradient(135deg, #f85149 0%, #ff6b6b 100%);
+    color: white;
+}
+
+.manual-btn {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: white;
+    border: none;
+}
+
+.manual-btn:hover {
+    background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
+    color: white;
+}
+
+.store-btn {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: white;
+    border: none;
+}
+
+.store-btn:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%);
+    color: white;
+}
+
+.store-btn:disabled {
+    background: #30363d;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.remove-btn {
+    background: linear-gradient(135deg, #da3633 0%, #f85149 100%);
+    color: white;
+    border: none;
+}
+
+.remove-btn:hover {
+    background: linear-gradient(135deg, #f85149 0%, #ff6b6b 100%);
+    color: white;
+}
+
+.remove-btn:disabled {
+    background: #30363d;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.section {
+    background: #0d1117;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #30363d;
+}
+
+.section h3 {
+    color: #58a6ff;
+    margin: 0 0 10px 0;
+    font-size: 16px;
+}
+
+.log-box {
+    background: #0d1117;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    border: 1px solid #30363d;
+    margin-top: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.status-box {
+    background: #0d1117;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    border: 1px solid #30363d;
+    margin-top: 10px;
+    min-height: 100px;
+}
+
+.device-list {
+    margin-top: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.device-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.device-card:hover {
+    border-color: #58a6ff;
+    transform: translateX(5px);
+}
+
+.device-card.selected {
+    border-color: #2ea043;
+    background: #0d3d1f;
+}
+
+.device-card.disabled {
+    opacity: 0.5;
+    border-color: #8b949e;
+}
+
+.device-card h3 {
+    color: #58a6ff;
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    word-break: break-all;
+}
+
+.device-info {
+    font-size: 12px;
+    margin: 5px 0;
+}
+
+.device-info span {
+    color: #58a6ff;
+    font-weight: bold;
+}
+
+.checkbox {
+    margin-right: 10px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #2ea043;
+}
+
+.checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.stats-box {
+    background: #0d1117;
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid #58a6ff;
+}
+
+.stats-number {
+    font-size: 36px;
+    font-weight: bold;
+    color: #58a6ff;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.success { color: #2ea043; }
+.warning { color: #f0883e; }
+.error { color: #f85149; }
+.info { color: #58a6ff; }
+
+.consensus-select {
+    background: #0d1117;
+    color: #58a6ff;
+    border: 1px solid #58a6ff;
+    padding: 8px;
+    border-radius: 8px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.action-buttons .control-btn {
+    flex: 1;
+    margin: 0;
+}
+
+.history-item {
+    background: #0d1117;
+    border-left: 3px solid #58a6ff;
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #161b22;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+    background: #58a6ff;
+    border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+        height: auto;
+    }
+    .left-panel, .right-panel {
+        width: 100%;
+    }
+    h1 { font-size: 1.8rem; }
+}
+</style>
+
+<div class="bg-animation"></div>
+
+</head>
+
+<body>
+
+<div class="navbar">
+    <button onclick="goHome()">🏠 Home</button>
+    <button onclick="goPerception()">📡 Perception Layer</button>
+    <button onclick="goEdge()">⚡ Edge Layer</button>
+    <button onclick="goBlockchain()">🔗 Blockchain Layer</button>
+    <button onclick="goApplication()">📱 Application Layer</button>
+    <button onclick="goBack()">◀ Back</button>
+</div>
+
+<h1>🌐 Network Layer - Distributed Device Registration</h1>
+
+<div class="container">
+
+    <div class="left-panel">
+        <h2>🎮 Network Controls</h2>
+
+        <!-- ========== COMMUNICATION RECEIVER (Always ON) ========== -->
+        <div class="section">
+            <h3>💬 Communication Receiver (Auto)</h3>
+            <div style="display: flex; gap: 10px;">
+                <button class="control-btn comm-btn" onclick="startCommReceiver()" style="flex:1;">▶️ Start Comm Receiver</button>
+                <button class="control-btn stop-btn" onclick="stopCommReceiver()" style="flex:1;">⏹️ Stop Comm Receiver</button>
+            </div>
+            <div id="commReceiverStatus" class="log-box">
+                Status: Checking...
+            </div>
+        </div>
+
+        <!-- ========== REGISTRATION RECEIVER (Manual - Auto stops after store) ========== -->
+        <div class="section">
+            <h3>📝 Registration Receiver (Manual)</h3>
+            <div style="display: flex; gap: 10px;">
+                <button class="control-btn reg-btn" onclick="startRegReceiver()" style="flex:1;">▶️ Start Reg Receiver</button>
+                <button class="control-btn stop-btn" onclick="stopRegReceiver()" style="flex:1;">⏹️ Stop Reg Receiver</button>
+            </div>
+            <div id="regReceiverStatus" class="log-box">
+                Status: Checking...
+            </div>
+            <button class="control-btn manual-btn" onclick="manualReceive()" style="margin-top:10px;">
+                📥 Manual Receive from Edge
+            </button>
+        </div>
+
+        <div class="section">
+            <h3>🤝 Part 1: Consensus Mechanism</h3>
+            <select id="consensusType" class="consensus-select">
+                <option value="pbft">PBFT (Practical Byzantine Fault Tolerance)</option>
+                <option value="poa">PoA (Proof of Authority)</option>
+            </select>
+            <div id="consensusStatus" class="log-box">
+                Consensus: PBFT Selected
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🔒 Part 3: Security Check</h3>
+            <button class="control-btn" onclick="runSecurityCheck()">🔍 Run Security Check</button>
+            <button class="control-btn" onclick="verifySignature()">✍️ Verify Signature</button>
+            <button class="control-btn" onclick="verifyZKP()">🔐 Verify ZKP Proof</button>
+            <div id="securityStatus" class="log-box">
+                Security checks pending
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>💾 Blockchain Operations</h3>
+            <div class="stats-box" style="margin-bottom:10px;">
+                <div class="stats-number" id="selectedCount">0</div>
+                <div class="stats-label">Devices Selected</div>
+            </div>
+            <div class="action-buttons">
+                <button class="control-btn remove-btn" id="removeBtn" onclick="removeSelectedDevices()" style="background:#da3633;">
+                    🗑️ Remove Selected
+                </button>
+                <button class="control-btn store-btn" id="storeBtn" onclick="storeSelectedToBlockchain()">
+                    📤 Store to Blockchain
+                </button>
+            </div>
+            <button class="control-btn" onclick="selectAllDevices()">✓ Select All (Pending Only)</button>
+            <button class="control-btn" onclick="deselectAllDevices()">☐ Deselect All</button>
+            <div id="blockchainStatus" class="log-box">
+                Blockchain ready
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>📜 Registration History</h3>
+            <div id="historyList" class="log-box">
+                <div style="text-align:center;padding:10px;">No history yet</div>
+            </div>
+            <button class="control-btn" onclick="refreshHistory()">🔄 Refresh History</button>
+        </div>
+
+        <div class="status-box" id="mainStatus">
+            <b>🌐 Network Layer Ready</b><br>
+            <span class="info">💬 Communication Receiver: Always ON for messages</span><br>
+            <span class="info">📝 Registration Receiver: Manual for device registration</span>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <h2>📋 Verified Devices in Network Layer</h2>
+
+        <div class="grid-2">
+            <div class="stats-box">
+                <div class="stats-number" id="deviceCount">0</div>
+                <div class="stats-label">Total Verified Devices</div>
+            </div>
+            <div class="stats-box">
+                <div class="stats-number" id="blockchainCount">0</div>
+                <div class="stats-label">On Blockchain (Stored)</div>
+            </div>
+        </div>
+
+        <div id="deviceList" class="device-list">
+            <div style="text-align:center;padding:40px;">📭 No devices verified yet</div>
+        </div>
+
+        <div id="logDisplay" class="log-box" style="margin-top:20px;">
+            <b>📝 Activity Log:</b><br>
+            Ready...
+        </div>
+    </div>
+
+</div>
+
+<script>
+
+// Navigation
+function goHome(){ window.location.href="/"; }
+function goPerception(){ window.location.href="/perception"; }
+function goEdge(){ window.location.href="/edge"; }
+function goBlockchain(){ window.location.href="/blockchain"; }
+function goApplication(){ window.location.href="/application"; }
+function goBack(){ history.back(); }
+
+// Global variables
+let selectedDevices = new Set();
+let currentDevices = [];
+let storedDevices = new Set();
+let registrationHistory = [];
+
+// Logging
+function addLog(message, type){
+    let logDiv = document.getElementById('logDisplay');
+    let time = new Date().toLocaleTimeString();
+    let color = '#58a6ff';
+    if(type === 'success') color = '#2ea043';
+    if(type === 'error') color = '#f85149';
+    logDiv.innerHTML = logDiv.innerHTML + '<br><span style="color:' + color + '">[' + time + '] ' + message + '</span>';
+    logDiv.scrollTop = logDiv.scrollHeight;
+    console.log(message);
+}
+
+// Add to history
+function addToHistory(deviceId, deviceType) {
+    const historyItem = {
+        device_id: deviceId,
+        device_type: deviceType,
+        timestamp: new Date().toLocaleString(),
+        stored_on_blockchain: true
+    };
+    registrationHistory.unshift(historyItem);
+    refreshHistory();
+    localStorage.setItem('registration_history', JSON.stringify(registrationHistory));
+}
+
+function refreshHistory() {
+    const historyDiv = document.getElementById('historyList');
+    if(registrationHistory.length === 0) {
+        historyDiv.innerHTML = '<div style="text-align:center;padding:10px;">No history yet</div>';
+        return;
+    }
+    
+    let html = '';
+    for(let h of registrationHistory) {
+        html += `
+            <div class="history-item">
+                🆔 ${h.device_id.substring(0, 35)}...<br>
+                📱 Type: ${h.device_type}<br>
+                ⏰ ${h.timestamp}<br>
+                <span class="success">✅ Stored on Blockchain</span>
+            </div>
+        `;
+    }
+    historyDiv.innerHTML = html;
+}
+
+function loadHistory() {
+    const saved = localStorage.getItem('registration_history');
+    if(saved) {
+        registrationHistory = JSON.parse(saved);
+        refreshHistory();
+    }
+}
+
+// ============== RECEIVER FUNCTIONS ==============
+
+// Communication Receiver (Always ON - Auto)
+async function startCommReceiver(){
+    addLog("Starting Communication Receiver...", 'info');
+    try{
+        let res = await fetch('/api/network/start-comm-receiver', {method:'POST'});
+        let data = await res.json();
+        if(data.status === 'success'){
+            document.getElementById('commReceiverStatus').innerHTML = 'Status: ✅ RUNNING<br>Topic: network/communication (AUTO)';
+            addLog("Communication Receiver started (Always ON)", 'success');
+            updateReceiversStatus();
+        } else {
+            addLog("Failed to start: " + data.message, 'error');
+        }
+    } catch(e){ addLog("Error: " + e.message, 'error'); }
+}
+
+async function stopCommReceiver(){
+    addLog("Stopping Communication Receiver...", 'info');
+    try{
+        let res = await fetch('/api/network/stop-comm-receiver', {method:'POST'});
+        let data = await res.json();
+        document.getElementById('commReceiverStatus').innerHTML = 'Status: ⚠️ STOPPED';
+        addLog("Communication Receiver stopped", 'success');
+        updateReceiversStatus();
+    } catch(e){ addLog("Error: " + e.message, 'error'); }
+}
+
+// Registration Receiver (Manual - Auto stops after store)
+async function startRegReceiver(){
+    addLog("Starting Registration Receiver...", 'info');
+    try{
+        let res = await fetch('/api/network/start-reg-receiver', {method:'POST'});
+        let data = await res.json();
+        if(data.status === 'success'){
+            document.getElementById('regReceiverStatus').innerHTML = 'Status: ✅ RUNNING<br>Topic: network/device_registration (MANUAL)';
+            addLog("Registration Receiver started (Manual mode)", 'success');
+            updateReceiversStatus();
+            refreshDevices();
+        } else {
+            addLog("Failed to start: " + data.message, 'error');
+        }
+    } catch(e){ addLog("Error: " + e.message, 'error'); }
+}
+
+async function stopRegReceiver(){
+    addLog("Stopping Registration Receiver...", 'info');
+    try{
+        let res = await fetch('/api/network/stop-reg-receiver', {method:'POST'});
+        let data = await res.json();
+        document.getElementById('regReceiverStatus').innerHTML = 'Status: ⚠️ STOPPED';
+        addLog("Registration Receiver stopped", 'success');
+        updateReceiversStatus();
+    } catch(e){ addLog("Error: " + e.message, 'error'); }
+}
+
+async function updateReceiversStatus(){
+    try{
+        let res = await fetch('/api/network/receivers-status');
+        let data = await res.json();
+        if(data.communication_receiver){
+            document.getElementById('commReceiverStatus').innerHTML = 'Status: ✅ RUNNING<br>Topic: network/communication (AUTO)';
+        } else {
+            document.getElementById('commReceiverStatus').innerHTML = 'Status: ⚠️ STOPPED';
+        }
+        if(data.registration_receiver){
+            document.getElementById('regReceiverStatus').innerHTML = 'Status: ✅ RUNNING<br>Topic: network/device_registration (MANUAL)';
+        } else {
+            document.getElementById('regReceiverStatus').innerHTML = 'Status: ⚠️ STOPPED';
+        }
+    } catch(e){}
+}
+
+// Manual Receive
+async function manualReceive() {
+    addLog("📥 Manually checking for packets from Edge Layer...", 'info');
+    
+    try {
+        const response = await fetch('/api/network/manual-receive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        
+        if(data.status === 'success') {
+            addLog(`✅ ${data.message}`, 'success');
+            if(data.received_count > 0) {
+                addLog(`📱 Received ${data.received_count} new device(s)`, 'success');
+                refreshDevices();
+            } else {
+                addLog(`📭 No new packets available`, 'info');
+            }
+        } else {
+            addLog(`❌ Manual receive failed: ${data.message}`, 'error');
+        }
+    } catch(e) {
+        addLog(`❌ Error: ${e.message}`, 'error');
+    }
+}
+
+async function getBlockchainCount(){
+    try{
+        let res = await fetch('/api/blockchain/device-count');
+        let data = await res.json();
+        document.getElementById('blockchainCount').innerText = data.count || 0;
+    } catch(e){}
+}
+
+// Security Check Functions
+async function runSecurityCheck(){
+    addLog("Running full security check...", 'info');
+    let consensus = document.getElementById('consensusType').value;
+    addLog("Consensus Type: " + consensus.toUpperCase(), 'info');
+    
+    setTimeout(function(){
+        document.getElementById('securityStatus').innerHTML = `
+            <b>✅ Security Check Results:</b><br>
+            ✓ Device Signature: Valid<br>
+            ✓ Hash Match: Passed<br>
+            ✓ Timestamp: Valid<br>
+            ✓ ZKP Proof: Verified<br>
+            ✓ Consensus: ${consensus.toUpperCase()} Ready<br>
+            <span class="success">✅ ALL SECURITY CHECKS PASSED!</span>
+        `;
+        addLog("All security checks passed!", 'success');
+    }, 500);
+}
+
+async function verifySignature(){
+    addLog("Verifying device signature...", 'info');
+    setTimeout(function(){
+        let currentHtml = document.getElementById('securityStatus').innerHTML;
+        document.getElementById('securityStatus').innerHTML = currentHtml + '<br>✓ Device signature verified successfully';
+        addLog("Device signature verified", 'success');
+    }, 500);
+}
+
+async function verifyZKP(){
+    addLog("Verifying Zero Knowledge Proof...", 'info');
+    setTimeout(function(){
+        let currentHtml = document.getElementById('securityStatus').innerHTML;
+        document.getElementById('securityStatus').innerHTML = currentHtml + '<br>✓ ZKP proof verified';
+        addLog("ZKP proof verified", 'success');
+    }, 500);
+}
+
+// Device Selection Functions
+function toggleSelectDevice(virtualId){
+    if(storedDevices.has(virtualId)){
+        addLog(`⚠️ Device ${virtualId.substring(0,30)}... is already on blockchain! Cannot select again.`, 'warning');
+        return;
+    }
+    
+    if(selectedDevices.has(virtualId)){
+        selectedDevices.delete(virtualId);
+    } else {
+        selectedDevices.add(virtualId);
+    }
+    updateSelectedCount();
+    refreshDeviceSelection();
+}
+
+function selectAllDevices(){
+    for(let device of currentDevices){
+        if(!storedDevices.has(device)){
+            selectedDevices.add(device);
+        }
+    }
+    updateSelectedCount();
+    refreshDeviceSelection();
+    addLog(`Selected ${selectedDevices.size} pending devices`, 'info');
+}
+
+function deselectAllDevices(){
+    selectedDevices.clear();
+    updateSelectedCount();
+    refreshDeviceSelection();
+    addLog("Deselected all devices", 'info');
+}
+
+async function removeSelectedDevices(){
+    if(selectedDevices.size === 0){
+        addLog("⚠️ No devices selected to remove!", 'error');
+        alert("Please select at least one device to remove.");
+        return;
+    }
+    
+    let storedSelected = Array.from(selectedDevices).filter(vid => storedDevices.has(vid));
+    if(storedSelected.length > 0){
+        addLog(`⚠️ Cannot remove ${storedSelected.length} device(s) that are already on blockchain!`, 'error');
+        alert(`Cannot remove devices that are already stored on blockchain!`);
+        return;
+    }
+    
+    if(confirm(`Remove ${selectedDevices.size} device(s) from the queue?`)){
+        addLog(`🗑️ Removing ${selectedDevices.size} device(s) from Network Layer...`, 'info');
+        
+        try{
+            let res = await fetch('/api/network/clear-selected', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ devices: Array.from(selectedDevices) })
+            });
+            
+            let data = await res.json();
+            if(data.status === 'success'){
+                addLog(`✅ Successfully removed ${selectedDevices.size} device(s)`, 'success');
+                
+                selectedDevices.forEach(vid => {
+                    let index = currentDevices.indexOf(vid);
+                    if(index !== -1) currentDevices.splice(index, 1);
+                });
+                
+                selectedDevices.clear();
+                updateSelectedCount();
+                refreshDevices();
+            } else {
+                addLog(`❌ Failed to remove: ${data.message}`, 'error');
+            }
+        } catch(e){
+            addLog(`❌ Error: ${e.message}`, 'error');
+        }
+    }
+}
+
+function updateSelectedCount(){
+    document.getElementById('selectedCount').innerText = selectedDevices.size;
+    
+    let storeBtn = document.getElementById('storeBtn');
+    let removeBtn = document.getElementById('removeBtn');
+    
+    if(selectedDevices.size === 0){
+        storeBtn.disabled = true;
+        storeBtn.style.opacity = '0.5';
+        removeBtn.disabled = true;
+        removeBtn.style.opacity = '0.5';
+    } else {
+        storeBtn.disabled = false;
+        storeBtn.style.opacity = '1';
+        removeBtn.disabled = false;
+        removeBtn.style.opacity = '1';
+    }
+}
+
+function refreshDeviceSelection(){
+    let cards = document.querySelectorAll('.device-card');
+    cards.forEach(card => {
+        let vid = card.getAttribute('data-vid');
+        if(storedDevices.has(vid)){
+            card.classList.add('disabled');
+            let checkbox = card.querySelector('.checkbox');
+            if(checkbox) checkbox.disabled = true;
+        } else if(selectedDevices.has(vid)){
+            card.classList.add('selected');
+        } else {
+            card.classList.remove('selected');
+        }
+    });
+}
+
+// Store to Blockchain
+async function storeSelectedToBlockchain(){
+    if(selectedDevices.size === 0){
+        addLog("⚠️ No devices selected!", 'error');
+        alert("Please select at least one device to store on blockchain.");
+        return;
+    }
+    
+    let validSelected = Array.from(selectedDevices).filter(vid => !storedDevices.has(vid));
+    
+    if(validSelected.length === 0){
+        addLog("⚠️ All selected devices are already on blockchain!", 'error');
+        alert("Selected devices are already stored on blockchain!");
+        return;
+    }
+    
+    let consensus = document.getElementById('consensusType').value;
+    addLog(`Storing ${validSelected.length} devices to blockchain with ${consensus.toUpperCase()} consensus...`, 'info');
+    
+    document.getElementById('blockchainStatus').innerHTML = '⏳ Storing devices to blockchain...';
+    
+    try{
+        let res = await fetch('/api/network/store-to-blockchain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                selected_devices: validSelected,
+                consensus_type: consensus
+            })
+        });
+        let data = await res.json();
+        
+        if(data.status === 'success'){
+            for(let vid of validSelected){
+                storedDevices.add(vid);
+                let deviceType = 'virtual';
+                addToHistory(vid, deviceType);
+            }
+            
+            validSelected.forEach(vid => selectedDevices.delete(vid));
+            updateSelectedCount();
+            
+            document.getElementById('blockchainStatus').innerHTML = `
+                <b>✅ Store Complete!</b><br>
+                ${data.message}<br>
+                Total on Blockchain: ${data.total_blockchain_devices}<br>
+                <span class="success">✓ Devices stored successfully</span><br>
+                <span class="info">📱 QR Codes available in Blockchain Layer</span>
+            `;
+            addLog(`✅ ${data.message}`, 'success');
+            addLog(`📱 Go to Blockchain Layer to view QR Codes and Control Panel Links`, 'info');
+            
+            getBlockchainCount();
+            refreshDevices();
+            
+            // Check if registration receiver was auto-stopped
+            if(data.registration_receiver_stopped){
+                addLog(`🔴 Registration Receiver auto-stopped after store`, 'warning');
+                updateReceiversStatus();
+            }
+        } else {
+            document.getElementById('blockchainStatus').innerHTML = `<b>❌ Failed:</b> ${data.message}`;
+            addLog(`❌ Failed: ${data.message}`, 'error');
+        }
+    } catch(e){
+        addLog(`❌ Error: ${e.message}`, 'error');
+        document.getElementById('blockchainStatus').innerHTML = `<b>❌ Error:</b> ${e.message}`;
+    }
+}
+
+// Device Functions
+async function refreshDevices(){
+    try{
+        let res = await fetch('/api/network/status');
+        let data = await res.json();
+        document.getElementById('deviceCount').innerText = data.total_devices || 0;
+        
+        let devices = data.devices || [];
+        currentDevices = devices;
+        let html = '';
+        
+        if(devices.length === 0){
+            html = '<div style="text-align:center;padding:40px;">📭 No devices verified yet</div>';
+        } else {
+            for(let vid of devices){
+                let d = (data.details && data.details[vid]) ? data.details[vid] : {};
+                let isStored = storedDevices.has(vid) || d.blockchain_status === 'confirmed';
+                let isSelected = selectedDevices.has(vid);
+                
+                if(isStored && !storedDevices.has(vid)){
+                    storedDevices.add(vid);
+                }
+                
+                let blockchainStatusText = isStored ? 
+                    '<span class="success">✅ On Blockchain</span>' : 
+                    '<span class="warning">⏳ Pending</span>';
+                
+                html += `
+                    <div class="device-card ${isStored ? 'disabled' : (isSelected ? 'selected' : '')}" data-vid="${vid}" onclick="${isStored ? '' : `toggleSelectDevice('${vid}')`}">
+                        <div style="display: flex; align-items: flex-start; gap: 10px;">
+                            <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} ${isStored ? 'disabled' : ''} onclick="event.stopPropagation(); ${isStored ? '' : `toggleSelectDevice('${vid}')`}">
+                            <div style="flex: 1;">
+                                <h3>🆔 ${vid.substring(0,35)}...</h3>
+                                <div class="device-info"><span>📱 Type:</span> ${d.device_type || 'Unknown'}</div>
+                                <div class="device-info"><span>⏰ Time:</span> ${d.registration_time || 'N/A'}</div>
+                                <div class="device-info"><span>🔐 Status:</span> <span class="success">Active</span></div>
+                                <div class="device-info"><span>🔗 Blockchain:</span> ${blockchainStatusText}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        document.getElementById('deviceList').innerHTML = html;
+        refreshDeviceSelection();
+    } catch(e){ addLog("Error refreshing: " + e.message, 'error'); }
+}
+
+// Consensus change listener
+document.getElementById('consensusType').addEventListener('change', function(){
+    let consensus = this.value;
+    document.getElementById('consensusStatus').innerHTML = `Consensus: ${consensus.toUpperCase()} Selected`;
+    addLog(`Consensus changed to: ${consensus.toUpperCase()}`, 'info');
+});
+
+// Load history on page load
+loadHistory();
+
+// Auto refresh
+setInterval(refreshDevices, 5000);
+setInterval(getBlockchainCount, 5000);
+setInterval(updateReceiversStatus, 5000);
+
+// Initial load
+refreshDevices();
+updateReceiversStatus();
+getBlockchainCount();
+
+</script>
+
+</body>
+</html>

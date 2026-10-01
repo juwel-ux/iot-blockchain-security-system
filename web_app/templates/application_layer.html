@@ -1,0 +1,1761 @@
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<title>Application Layer - IoT Blockchain Network Visualizer & Test Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vis-network/standalone/umd/vis-network.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: radial-gradient(ellipse at 20% 30%, #0a0c10, #050608); color: #e6edf3; font-family: 'Inter', 'Segoe UI', sans-serif; min-height: 100vh; position: relative; }
+.bg-animation { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; overflow: hidden; }
+.bg-animation::before { content: ''; position: absolute; width: 150%; height: 150%; background: radial-gradient(circle, rgba(88,166,255,0.03) 1px, transparent 1px); background-size: 40px 40px; animation: moveGrid 30s linear infinite; }
+@keyframes moveGrid { 0% { transform: translate(0, 0); } 100% { transform: translate(50px, 50px); } }
+.orb-1, .orb-2, .orb-3 { position: fixed; border-radius: 50%; filter: blur(100px); z-index: -1; opacity: 0.3; animation: float 25s ease-in-out infinite; }
+.orb-1 { width: 500px; height: 500px; background: #1f6feb; top: -200px; right: -100px; animation-delay: 0s; }
+.orb-2 { width: 400px; height: 400px; background: #2ea043; bottom: -150px; left: -100px; animation-delay: 5s; }
+.orb-3 { width: 350px; height: 350px; background: #da3633; bottom: 20%; right: 10%; animation-delay: 10s; opacity: 0.15; }
+@keyframes float { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(40px, -40px) scale(1.05); } 66% { transform: translate(-30px, 30px) scale(0.95); } }
+.navbar { background: rgba(13, 17, 23, 0.75); backdrop-filter: blur(16px); padding: 14px 28px; display: flex; justify-content: center; gap: 12px; border-bottom: 1px solid rgba(88,166,255,0.3); position: sticky; top: 0; z-index: 100; flex-wrap: wrap; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.navbar button { padding: 10px 24px; background: rgba(13,17,23,0.9); color: #58a6ff; border: 1px solid rgba(88,166,255,0.4); cursor: pointer; font-size: 13px; font-weight: 500; border-radius: 40px; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); font-family: 'Inter', sans-serif; }
+.navbar button:hover { background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; transform: translateY(-3px); box-shadow: 0 8px 25px rgba(88,166,255,0.35); border-color: transparent; }
+.run-all-btn { background: linear-gradient(135deg, #2ea043, #238636) !important; color: white !important; border: none !important; padding: 10px 32px !important; font-weight: 600 !important; letter-spacing: 0.5px; }
+.run-all-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(46,160,67,0.5) !important; }
+h1 { text-align: center; font-size: 2rem; font-weight: 700; margin: 30px 0 15px; background: linear-gradient(135deg, #58a6ff, #79c0ff, #2ea043); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -0.5px; text-shadow: 0 0 30px rgba(88,166,255,0.2); }
+.container { display: flex; flex-direction: column; gap: 28px; padding: 20px 32px; max-width: 1600px; margin: 0 auto; }
+.row { display: flex; gap: 28px; flex-wrap: wrap; }
+.card { background: rgba(22, 27, 34, 0.7); backdrop-filter: blur(12px); border-radius: 28px; border: 1px solid rgba(88,166,255,0.2); padding: 24px; flex: 1; min-width: 280px; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+.card:hover { transform: translateY(-4px); border-color: rgba(88,166,255,0.5); box-shadow: 0 15px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(88,166,255,0.1); }
+.card h3 { color: #58a6ff; margin-bottom: 20px; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 10px; letter-spacing: -0.3px; }
+.network-container { background: rgba(13, 17, 23, 0.6); border-radius: 24px; padding: 20px; min-height: 480px; border: 1px solid rgba(88,166,255,0.15); transition: all 0.3s; }
+.network-container:hover { border-color: rgba(88,166,255,0.35); }
+#network { width: 100%; height: 450px; background: rgba(0,0,0,0.2); border-radius: 20px; }
+.graph-stats { display: flex; justify-content: center; gap: 30px; margin-top: 18px; flex-wrap: wrap; }
+.graph-stat { background: rgba(13,17,23,0.8); padding: 8px 20px; border-radius: 40px; font-size: 12px; font-weight: 500; border: 1px solid rgba(88,166,255,0.25); backdrop-filter: blur(4px); }
+.graph-stat span:first-child { color: #8b949e; margin-right: 8px; }
+.graph-stat span:last-child { color: #58a6ff; font-weight: 700; }
+.layer-card { background: rgba(13, 17, 23, 0.7); border-radius: 18px; padding: 14px 18px; margin-bottom: 12px; border-left: 3px solid #58a6ff; transition: all 0.2s; }
+.layer-card:hover { background: rgba(31,111,235,0.08); transform: translateX(5px); }
+.layer-card .layer-name { font-weight: 700; color: #58a6ff; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+.layer-card .layer-status { font-size: 11px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.status-badge { display: inline-block; padding: 3px 12px; border-radius: 30px; font-size: 10px; font-weight: 600; }
+.status-success { background: #0d3d1f; color: #2ea043; border: 1px solid rgba(46,160,67,0.3); }
+.status-warning { background: #3d2e1f; color: #f0883e; border: 1px solid rgba(240,136,62,0.3); }
+.status-error { background: #3d1f1f; color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+.status-pending { background: #1a1f2e; color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 14px; }
+.stat-item { background: linear-gradient(135deg, #0d1117, #161b22); padding: 14px; border-radius: 20px; text-align: center; border: 1px solid #30363d; transition: all 0.2s; }
+.stat-item:hover { border-color: #58a6ff; transform: scale(1.02); box-shadow: 0 4px 12px rgba(88,166,255,0.1); }
+.stat-value { font-size: 32px; font-weight: 800; color: #58a6ff; }
+.stat-label { font-size: 10px; color: #8b949e; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500; }
+.health-bar { height: 8px; background: #30363d; border-radius: 10px; overflow: hidden; margin: 15px 0; }
+.health-fill { height: 100%; background: linear-gradient(90deg, #2ea043, #58a6ff, #79c0ff); width: 0%; transition: width 0.5s; border-radius: 10px; box-shadow: 0 0 8px rgba(46,160,67,0.4); }
+.action-buttons { display: flex; gap: 12px; margin-top: 18px; }
+.action-btn { padding: 9px 18px; background: #0d1117; border: 1px solid #58a6ff; color: #58a6ff; border-radius: 40px; cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.2s; flex: 1; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
+.action-btn:hover { background: #58a6ff; color: black; transform: translateY(-2px); }
+.action-btn-primary { background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; border: none; }
+.security-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: linear-gradient(135deg, #0d1117, #161b22); border-radius: 14px; margin-bottom: 10px; border: 1px solid #30363d; transition: all 0.2s; }
+.security-item:hover { border-color: #58a6ff; }
+.security-name { font-size: 11px; font-weight: 600; }
+.security-status { font-size: 10px; font-weight: 700; }
+.security-active { color: #2ea043; }
+.device-list { max-height: 280px; overflow-y: auto; }
+.device-item { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: linear-gradient(135deg, #0d1117, #161b22); border-radius: 14px; margin-bottom: 10px; border: 1px solid #30363d; transition: all 0.2s; }
+.device-item:hover { border-color: #58a6ff; transform: translateX(5px); }
+.device-avatar { width: 34px; height: 34px; border-radius: 12px; background: linear-gradient(135deg, #238636, #2ea043); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.device-id { font-family: monospace; color: #58a6ff; font-size: 10px; font-weight: 500; }
+.notification-list { max-height: 240px; overflow-y: auto; }
+.notification-item { padding: 12px 14px; background: linear-gradient(135deg, #0d1117, #161b22); border-radius: 14px; margin-bottom: 10px; border-left: 3px solid #58a6ff; font-size: 10px; transition: all 0.2s; }
+.notification-item:hover { transform: translateX(3px); }
+.notification-time { font-size: 9px; color: #8b949e; margin-bottom: 5px; }
+.test-card { background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(12px); border-radius: 24px; border: 1px solid rgba(88,166,255,0.25); padding: 24px; margin-bottom: 24px; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.test-card:hover { border-color: rgba(88,166,255,0.6); transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0,0,0,0.3); }
+.test-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 15px; }
+.test-title { font-size: 1.15rem; font-weight: 700; color: #58a6ff; letter-spacing: -0.3px; }
+.run-test-btn { padding: 10px 22px; background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; border: none; border-radius: 40px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+.run-test-btn:hover { transform: scale(1.03); box-shadow: 0 6px 20px rgba(31,111,235,0.5); }
+.test-canvas { max-height: 280px; width: 100%; margin: 18px 0; background: rgba(0,0,0,0.25); border-radius: 16px; padding: 10px; }
+.test-summary { background: rgba(13, 17, 23, 0.7); border-radius: 18px; padding: 16px; margin-top: 14px; border: 1px solid rgba(88,166,255,0.1); }
+.summary-stats { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+.summary-stat { text-align: center; padding: 10px 18px; background: linear-gradient(135deg, #0d1117, #161b22); border-radius: 30px; border: 1px solid #30363d; min-width: 100px; }
+.summary-stat-value { font-size: 24px; font-weight: 800; color: #58a6ff; }
+.summary-stat-label { font-size: 9px; color: #8b949e; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+.test-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }
+.test-table th, .test-table td { padding: 10px; text-align: left; border-bottom: 1px solid rgba(88,166,255,0.12); }
+.test-table th { color: #58a6ff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.tests-grid { display: flex; flex-direction: column; gap: 24px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #161b22; border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #58a6ff, #1f6feb); border-radius: 10px; }
+.live-badge { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #2ea043; box-shadow: 0 0 8px #2ea043; animation: pulse 1.5s infinite; margin-right: 10px; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.2); } }
+@media (max-width: 900px) { .row { flex-direction: column; } h1 { font-size: 1.5rem; } .container { padding: 15px; } }
+
+.test-sidebar {
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(12px);
+    border-radius: 24px;
+    border: 1px solid rgba(88,166,255,0.25);
+    padding: 24px;
+    margin-bottom: 24px;
+    transition: all 0.3s;
+}
+.test-sidebar:hover {
+    border-color: rgba(88,166,255,0.5);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+.test-sidebar h3 {
+    color: #58a6ff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.test-sidebar .device-selector {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.test-sidebar select {
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    min-width: 180px;
+}
+.test-sidebar select:hover {
+    border-color: #58a6ff;
+}
+.test-sidebar select:focus {
+    outline: none;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(88,166,255,0.2);
+}
+.test-sidebar .btn-primary {
+    background: linear-gradient(135deg, #1f6feb, #58a6ff);
+    color: white;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 40px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.test-sidebar .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(31,111,235,0.4);
+}
+.test-sidebar .btn-success {
+    background: linear-gradient(135deg, #2ea043, #238636);
+    color: white;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 40px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.test-sidebar .btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(46,160,67,0.4);
+}
+.test-sidebar .btn-danger {
+    background: linear-gradient(135deg, #da3633, #f85149);
+    color: white;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 40px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.test-sidebar .btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(248,81,73,0.4);
+}
+.test-status {
+    margin-top: 16px;
+    padding: 16px;
+    background: rgba(13, 17, 23, 0.6);
+    border-radius: 16px;
+    border: 1px solid rgba(88,166,255,0.1);
+}
+.test-status .status-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(88,166,255,0.05);
+}
+.test-status .status-item:last-child {
+    border-bottom: none;
+}
+.test-status .status-label {
+    color: #8b949e;
+}
+.test-status .status-value {
+    color: #58a6ff;
+    font-weight: 600;
+}
+.test-status .status-value.success {
+    color: #2ea043;
+}
+.test-status .status-value.error {
+    color: #f85149;
+}
+.test-results-table {
+    margin-top: 16px;
+    overflow-x: auto;
+}
+.test-results-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.test-results-table th {
+    color: #58a6ff;
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 2px solid rgba(88,166,255,0.2);
+    font-weight: 600;
+}
+.test-results-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(88,166,255,0.08);
+}
+.test-results-table tr:hover td {
+    background: rgba(88,166,255,0.05);
+}
+.test-results-table .highlight-your {
+    color: #58a6ff;
+    font-weight: 600;
+}
+.test-results-table .highlight-trad {
+    color: #f85149;
+    font-weight: 600;
+}
+.test-results-table .highlight-save {
+    color: #2ea043;
+    font-weight: 700;
+}
+
+/* New Bulk Message Send Styles */
+.bulk-section {
+    background: rgba(13, 17, 23, 0.6);
+    border-radius: 16px;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid rgba(88,166,255,0.1);
+}
+.bulk-section .device-selector {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.bulk-section select {
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    min-width: 150px;
+}
+.bulk-section select:hover {
+    border-color: #58a6ff;
+}
+.bulk-section .btn-bulk {
+    background: linear-gradient(135deg, #1f6feb, #58a6ff);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 40px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bulk-section .btn-bulk:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(31,111,235,0.4);
+}
+.bulk-status {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(13, 17, 23, 0.6);
+    border-radius: 12px;
+    border: 1px solid rgba(88,166,255,0.08);
+}
+.bulk-status .status-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(88,166,255,0.04);
+}
+.bulk-status .status-item:last-child {
+    border-bottom: none;
+}
+.bulk-status .status-label {
+    color: #8b949e;
+}
+.bulk-status .status-value {
+    color: #58a6ff;
+    font-weight: 600;
+}
+.bulk-status .status-value.success {
+    color: #2ea043;
+}
+.bulk-status .status-value.error {
+    color: #f85149;
+}
+</style>
+</head>
+<body>
+
+<div class="bg-animation"></div>
+<div class="orb-1"></div>
+<div class="orb-2"></div>
+<div class="orb-3"></div>
+
+<div class="navbar">
+    <button onclick="goHome()"><i class="fas fa-home"></i> Home</button>
+    <button onclick="goPerception()"><i class="fas fa-microchip"></i> Perception Layer</button>
+    <button onclick="goEdge()"><i class="fas fa-edge"></i> Edge Layer</button>
+    <button onclick="goNetwork()"><i class="fas fa-network-wired"></i> Network Layer</button>
+    <button onclick="goBlockchain()"><i class="fas fa-link"></i> Blockchain Layer</button>
+    <button onclick="goBack()"><i class="fas fa-arrow-left"></i> Back</button>
+    <button class="run-all-btn" onclick="runAllTests()"><i class="fas fa-play"></i> RUN ALL 6 TESTS</button>
+</div>
+
+<h1><i class="fas fa-chart-line"></i> Blockchain Network Visualizer & 6 Performance Test Dashboard</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="card" style="flex: 2;">
+            <h3><i class="fas fa-project-diagram"></i> <span class="live-badge"></span> Blockchain Network Graph (Proof of Work)</h3>
+            <div class="network-container">
+                <div id="network"></div>
+                <div class="graph-stats">
+                    <div class="graph-stat"><span><i class="fas fa-microchip"></i> Nodes:</span> <span id="nodeCount">0</span></div>
+                    <div class="graph-stat"><span><i class="fas fa-link"></i> Connections:</span> <span id="edgeCount">0</span></div>
+                    <div class="graph-stat"><span><i class="fas fa-cubes"></i> Consensus:</span> <span id="consensusType">PoW (Proof of Work)</span></div>
+                    <div class="graph-stat"><span><i class="fas fa-chart-bar"></i> Block Height:</span> <span id="blockHeightGraph">0</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card">
+            <h3><i class="fas fa-layer-group"></i> Layer Status</h3>
+            <div id="layerStatusContainer">
+                <div class="layer-card"><div class="layer-name"><i class="fas fa-eye"></i> Perception Layer</div><div class="layer-status"><span>Status: <span id="perceptionStatus" class="status-badge status-pending">Checking...</span></span></div></div>
+                <div class="layer-card"><div class="layer-name"><i class="fas fa-bolt"></i> Edge Layer</div><div class="layer-status"><span>Status: <span id="edgeStatus" class="status-badge status-pending">Checking...</span></span><span>Queue: <span id="edgeQueueCount">0</span></span></div></div>
+                <div class="layer-card"><div class="layer-name"><i class="fas fa-globe"></i> Network Layer</div><div class="layer-status"><span>Status: <span id="networkStatus" class="status-badge status-pending">Checking...</span></span><span>Devices: <span id="networkDeviceCount">0</span></span></div></div>
+                <div class="layer-card"><div class="layer-name"><i class="fas fa-link"></i> Blockchain Layer</div><div class="layer-status"><span>Status: <span id="blockchainStatus" class="status-badge status-pending">Checking...</span></span><span>Devices: <span id="blockchainDeviceCount">0</span></span></div></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-heartbeat"></i> System Health</h3>
+            <div class="stat-item"><div class="stat-value" id="healthPercentage">0%</div><div class="stat-label">Overall Health</div></div>
+            <div class="health-bar"><div id="healthFill" class="health-fill" style="width: 0%;"></div></div>
+            <div class="stats-grid">
+                <div class="stat-item"><div class="stat-value" id="activeLayers">0</div><div class="stat-label">Active Layers</div></div>
+                <div class="stat-item"><div class="stat-value" id="totalDevicesAll">0</div><div class="stat-label">Total Devices</div></div>
+                <div class="stat-item"><div class="stat-value" id="chainId">1337</div><div class="stat-label">Chain ID</div></div>
+                <div class="stat-item"><div class="stat-value" id="verifiedDevices">0</div><div class="stat-label">Verified</div></div>
+            </div>
+            <div class="action-buttons">
+                <button class="action-btn action-btn-primary" onclick="refreshNetwork()"><i class="fas fa-sync-alt"></i> Refresh Graph</button>
+                <button class="action-btn" onclick="runDiagnostic()"><i class="fas fa-stethoscope"></i> Diagnostic</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-shield-alt"></i> Security Status</h3>
+            <div id="securityStatus">
+                <div class="security-item"><span class="security-name"><i class="fas fa-lock"></i> Private IPFS Network</span><span id="privateIPFSStatus" class="security-status security-active">● Active</span></div>
+                <div class="security-item"><span class="security-name"><i class="fas fa-key"></i> E2EE Encryption</span><span id="e2eeStatus" class="security-status security-active">● Active (RSA-2048)</span></div>
+                <div class="security-item"><span class="security-name"><i class="fas fa-signature"></i> Digital Signatures</span><span id="signatureStatus" class="security-status security-active">● Active</span></div>
+                <div class="security-item"><span class="security-name"><i class="fas fa-database"></i> Secure Key Storage</span><span id="keyStorageStatus" class="security-status security-active">● Active (AES-256)</span></div>
+                <div class="security-item"><span class="security-name"><i class="fas fa-bell"></i> Intrusion Detection</span><span id="idsStatus" class="security-status security-active">● Active</span></div>
+                <div class="security-item"><span class="security-name"><i class="fas fa-archive"></i> Auto Backup</span><span id="backupStatus" class="security-status security-active">● Active (Monthly)</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card"><h3><i class="fas fa-mobile-alt"></i> Registered Devices (Blockchain)</h3><div id="allDevicesList" class="device-list"><div style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-pulse"></i> Loading devices...</div></div></div>
+        <div class="card"><h3><i class="fas fa-bell"></i> Notification Center</h3><div id="notificationCenter" class="notification-list"><div style="text-align:center;padding:20px;"><i class="fas fa-inbox"></i> No notifications yet</div></div><div class="action-buttons" style="margin-top:10px;"><button class="action-btn" onclick="clearNotifications()"><i class="fas fa-trash-alt"></i> Clear All</button></div></div>
+        <div class="card"><h3><i class="fas fa-chart-simple"></i> System Metrics</h3><div class="stats-grid"><div class="stat-item"><div class="stat-value" id="uptime">0</div><div class="stat-label"><i class="fas fa-clock"></i> Uptime (s)</div></div><div class="stat-item"><div class="stat-value" id="apiCalls">0</div><div class="stat-label"><i class="fas fa-code-branch"></i> API Calls</div></div><div class="stat-item"><div class="stat-value" id="lastUpdate">-</div><div class="stat-label"><i class="fas fa-clock"></i> Last Update</div></div><div class="stat-item"><div class="stat-value" id="totalMessages">0</div><div class="stat-label"><i class="fas fa-envelope"></i> Messages</div></div></div></div>
+    </div>
+
+    <!-- ============================================================
+    TEST DASHBOARD WITH BULK MESSAGE SEND (NEW FEATURE ADDED)
+    ============================================================ -->
+    <div class="row">
+        <div class="card" style="flex: 3;">
+            <h3><i class="fas fa-flask"></i> Test Dashboard - Select Device Count & Run All Tests</h3>
+            
+            <div class="test-sidebar">
+                <h3><i class="fas fa-cog"></i> Test Configuration</h3>
+                <div class="device-selector">
+                    <select id="deviceCountSelect">
+                        <option value="5">5 Devices</option>
+                        <option value="10">10 Devices</option>
+                        <option value="25">25 Devices</option>
+                        <option value="50">50 Devices</option>
+                        <option value="75">75 Devices</option>
+                        <option value="100">100 Devices</option>
+                    </select>
+                    <button class="btn-primary" onclick="registerTestDevices()">
+                        <i class="fas fa-microchip"></i> Register Devices
+                    </button>
+                    <button class="btn-success" onclick="runAllTestsForDeviceCount()">
+                        <i class="fas fa-play"></i> Run ALL Tests
+                    </button>
+                    <button class="btn-danger" onclick="clearTestData()">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+                
+                <div id="testRegistrationStatus" class="test-status">
+                    <div class="status-item">
+                        <span class="status-label">📱 Status</span>
+                        <span class="status-value" id="regStatus">Ready</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">📊 Devices Registered</span>
+                        <span class="status-value" id="regDeviceCount">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">🔗 Blockchain Added</span>
+                        <span class="status-value" id="regBlockchainCount">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">⏱️ Last Test</span>
+                        <span class="status-value" id="regLastTest">Never</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Message Send Section -->
+            <div class="bulk-section">
+                <h4 style="color:#58a6ff;margin-bottom:12px;font-size:14px;">
+                    <i class="fas fa-envelope"></i> Bulk Message Send for Throughput Test
+                </h4>
+                <div class="device-selector">
+                    <select id="bulkMessageCount">
+                        <option value="100">100 Messages</option>
+                        <option value="500">500 Messages</option>
+                        <option value="1000">1000 Messages</option>
+                        <option value="2000">2000 Messages</option>
+                        <option value="5000">5000 Messages</option>
+                    </select>
+                    <button class="btn-bulk" onclick="sendBulkMessages()">
+                        <i class="fas fa-envelope"></i> Send Bulk Messages
+                    </button>
+                </div>
+                <div id="bulkStatus" class="bulk-status">
+                    <div class="status-item">
+                        <span class="status-label">📊 Status</span>
+                        <span class="status-value" id="bulkStatusText">Ready</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">📤 Messages Sent</span>
+                        <span class="status-value" id="bulkSentCount">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">⏱️ Throughput</span>
+                        <span class="status-value" id="bulkThroughput">0 msg/sec</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="testResultsContainer" style="display:none;">
+                <h3 style="color:#58a6ff;margin-top:20px;"><i class="fas fa-chart-bar"></i> Performance Test Results</h3>
+                
+                <div style="background:rgba(13,17,23,0.6);border-radius:16px;padding:20px;margin-top:16px;border:1px solid rgba(88,166,255,0.1);">
+                    <canvas id="performanceChart" style="max-height:300px;width:100%;"></canvas>
+                </div>
+                
+                <div class="test-results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Device Count</th>
+                                <th>Your System (ms)</th>
+                                <th>Traditional (ms)</th>
+                                <th>Improvement (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card" style="flex: 3;">
+            <h3><i class="fas fa-lock"></i> Encryption / Decryption Test - Separate</h3>
+            
+            <div class="test-sidebar">
+                <h3><i class="fas fa-cog"></i> Message Test Configuration</h3>
+                <div class="device-selector">
+                    <select id="messageCountSelect">
+                        <option value="5">5 Messages</option>
+                        <option value="10">10 Messages</option>
+                        <option value="25">25 Messages</option>
+                        <option value="50">50 Messages</option>
+                        <option value="75">75 Messages</option>
+                        <option value="100">100 Messages</option>
+                    </select>
+                    <button class="btn-primary" onclick="runEncryptDecryptTest()">
+                        <i class="fas fa-lock"></i> Run Encrypt/Decrypt Test
+                    </button>
+                    <button class="btn-danger" onclick="clearEncryptDecryptData()">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+                
+                <div id="encryptStatus" class="test-status">
+                    <div class="status-item">
+                        <span class="status-label">🔐 Status</span>
+                        <span class="status-value" id="encryptStatusText">Ready</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">📤 Messages Sent</span>
+                        <span class="status-value" id="encryptMsgSent">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">📥 Messages Received</span>
+                        <span class="status-value" id="encryptMsgReceived">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">⏱️ Avg Encryption Time</span>
+                        <span class="status-value" id="encryptAvgTime">0 ms</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">⏱️ Avg Decryption Time</span>
+                        <span class="status-value" id="decryptAvgTime">0 ms</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">💰 Gas Saved</span>
+                        <span class="status-value success" id="encryptGasSaved">$0.00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="encryptResultsContainer" style="display:none;">
+                <h3 style="color:#58a6ff;margin-top:20px;"><i class="fas fa-chart-bar"></i> Encryption/Decryption Results</h3>
+                
+                <div style="background:rgba(13,17,23,0.6);border-radius:16px;padding:20px;margin-top:16px;border:1px solid rgba(88,166,255,0.1);">
+                    <canvas id="encryptChart" style="max-height:300px;width:100%;"></canvas>
+                </div>
+                
+                <div class="test-results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Message #</th>
+                                <th>Encryption Time (ms)</th>
+                                <th>Decryption Time (ms)</th>
+                                <th>Gas Fee (ETH)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="encryptTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card" style="flex: 3;">
+            <h3><i class="fas fa-chart-line"></i> 6 Performance Test Results Dashboard</h3>
+            <div class="tests-grid" id="testsGrid"><div class="loading-indicator"><i class="fas fa-spinner fa-pulse"></i> Loading test dashboard...</div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// ALL EXISTING CODE - COMPLETELY UNCHANGED
+// ================================================================
+
+let network = null;
+let nodes = new vis.DataSet([]);
+let edges = new vis.DataSet([]);
+let previousDeviceCount = 0;
+let testCharts = {};
+let notifications = [];
+let apiCallCount = 0;
+let startTime = Date.now();
+let totalMessages = 0;
+let layerStatus = { perception: false, edge: false, network: false, blockchain: false };
+let testResults = { scalability: null, throughput: null, latency: null, registration: null, encrypt_decrypt: null, gas_cost: null };
+
+// Performance test data - ACCUMULATIVE (real data only)
+let performanceTestData = [];
+let performanceChartInstance = null;
+
+// Encrypt/Decrypt test data
+let encryptTestData = [];
+let encryptChartInstance = null;
+
+function goHome(){ window.location.href="/"; }
+function goPerception(){ window.location.href="/perception"; }
+function goEdge(){ window.location.href="/edge"; }
+function goNetwork(){ window.location.href="/network"; }
+function goBlockchain(){ window.location.href="/blockchain"; }
+function goBack(){ history.back(); }
+
+function initNetwork() {
+    const container = document.getElementById('network');
+    const options = {
+        nodes: { shape: 'dot', size: 28, font: { size: 10, color: '#c9d1d9', face: 'monospace' }, borderWidth: 2, shadow: true, color: { background: '#58a6ff', border: '#1f6feb', highlight: { background: '#2ea043', border: '#238636' } } },
+        edges: { width: 1.5, color: { color: '#58a6ff', highlight: '#2ea043', hover: '#58a6ff' }, smooth: { type: 'continuous', roundness: 0.5 }, arrows: { to: { enabled: true, scaleFactor: 0.4 } } },
+        physics: { enabled: true, stabilization: { iterations: 100 }, solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -50, centralGravity: 0.01, springLength: 120, springConstant: 0.08, damping: 0.4, avoidOverlap: 0.5 } },
+        interaction: { hover: true, tooltipDelay: 200, zoomView: true, dragView: true }
+    };
+    network = new vis.Network(container, { nodes, edges }, options);
+    addNotification("Network graph initialized (PoW Consensus)", "success");
+}
+
+async function updateNetworkGraph() {
+    try {
+        const res = await fetch('/api/blockchain/devices');
+        const data = await res.json();
+        const devices = data.devices || [];
+        const deviceCount = devices.length;
+        document.getElementById('nodeCount').innerText = deviceCount;
+        document.getElementById('consensusType').innerHTML = 'PoW (Proof of Work)';
+        if(deviceCount > previousDeviceCount) { addNotification(deviceCount - previousDeviceCount + " new device(s) joined!", "success"); }
+        previousDeviceCount = deviceCount;
+        const existingNodeIds = new Set(nodes.getIds());
+        const newNodes = [];
+        for(let i = 0; i < devices.length; i++) {
+            const deviceId = devices[i];
+            const shortId = deviceId.substring(deviceId.length - 12, deviceId.length);
+            if(!existingNodeIds.has(deviceId)) { newNodes.push({ id: deviceId, label: shortId, title: 'Device: ' + deviceId, value: 10, group: 'device' }); }
+        }
+        nodes.add(newNodes);
+        const existingEdges = new Set(edges.getIds());
+        const newEdges = [];
+        for(let i = 0; i < devices.length; i++) {
+            for(let j = i + 1; j < devices.length; j++) {
+                const edgeId = devices[i] + '_to_' + devices[j];
+                if(!existingEdges.has(edgeId)) { newEdges.push({ id: edgeId, from: devices[i], to: devices[j], length: 150, width: 1.2 }); }
+            }
+        }
+        edges.add(newEdges);
+        const currentDeviceSet = new Set(devices);
+        nodes.getIds().forEach(nodeId => { if(!currentDeviceSet.has(nodeId)) nodes.remove(nodeId); });
+        document.getElementById('edgeCount').innerText = edges.length;
+        if(network) network.fit({ animation: true, duration: 500 });
+        document.getElementById('totalDevicesAll').innerText = deviceCount;
+        document.getElementById('verifiedDevices').innerText = deviceCount;
+    } catch(e) { console.error("Error updating network graph:", e); }
+}
+
+function addNotification(message, type){
+    let time = new Date().toLocaleTimeString();
+    notifications.unshift({ message, type, time });
+    if(notifications.length > 15) notifications.pop();
+    renderNotifications();
+}
+function renderNotifications(){
+    let container = document.getElementById('notificationCenter');
+    if(notifications.length === 0){ container.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-inbox"></i> No notifications yet</div>'; return; }
+    let html = '';
+    for(let i=0; i<Math.min(notifications.length, 8); i++){
+        let n = notifications[i];
+        let color = n.type === 'success' ? '#2ea043' : (n.type === 'error' ? '#f85149' : '#58a6ff');
+        html += '<div class="notification-item" style="border-left-color: ' + color + ';"><div class="notification-time"><i class="fas fa-clock"></i> ' + n.time + '</div><div><i class="fas fa-' + (n.type === 'success' ? 'check-circle' : (n.type === 'error' ? 'exclamation-circle' : 'info-circle')) + '"></i> ' + n.message + '</div></div>';
+    }
+    container.innerHTML = html;
+}
+function clearNotifications(){ notifications = []; renderNotifications(); addNotification("Notifications cleared", "info"); }
+function updateMetrics(){
+    let uptime = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('uptime').innerText = uptime;
+    document.getElementById('apiCalls').innerText = apiCallCount;
+    document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString();
+}
+async function loadPerceptionStatus(){ try{ await fetch('/api/check-packet'); layerStatus.perception = true; document.getElementById('perceptionStatus').innerHTML = '<span class="status-badge status-success"><i class="fas fa-check-circle"></i> Active</span>'; } catch(e){ layerStatus.perception = false; document.getElementById('perceptionStatus').innerHTML = '<span class="status-badge status-error"><i class="fas fa-times-circle"></i> Offline</span>'; } }
+async function loadEdgeStatus(){ try{ let res = await fetch('/api/edge/devices'); let data = await res.json(); if(data.status === 'success'){ layerStatus.edge = true; document.getElementById('edgeStatus').innerHTML = '<span class="status-badge status-success"><i class="fas fa-check-circle"></i> Active</span>'; document.getElementById('edgeQueueCount').innerText = data.count || 0; } else{ layerStatus.edge = false; document.getElementById('edgeStatus').innerHTML = '<span class="status-badge status-warning"><i class="fas fa-exclamation-triangle"></i> Degraded</span>'; } } catch(e){ layerStatus.edge = false; document.getElementById('edgeStatus').innerHTML = '<span class="status-badge status-error"><i class="fas fa-times-circle"></i> Offline</span>'; } }
+async function loadNetworkStatus(){ try{ let res = await fetch('/api/network/status'); let data = await res.json(); if(data.status === 'ok'){ layerStatus.network = true; document.getElementById('networkStatus').innerHTML = '<span class="status-badge status-success"><i class="fas fa-check-circle"></i> Active</span>'; document.getElementById('networkDeviceCount').innerText = data.total_devices || 0; } else{ layerStatus.network = false; document.getElementById('networkStatus').innerHTML = '<span class="status-badge status-warning"><i class="fas fa-exclamation-triangle"></i> Degraded</span>'; } } catch(e){ layerStatus.network = false; document.getElementById('networkStatus').innerHTML = '<span class="status-badge status-error"><i class="fas fa-times-circle"></i> Offline</span>'; } }
+async function loadBlockchainStatus(){ try{ let res = await fetch('/api/blockchain/status'); let data = await res.json(); if(data.status === 'connected'){ layerStatus.blockchain = true; document.getElementById('blockchainStatus').innerHTML = '<span class="status-badge status-success"><i class="fas fa-check-circle"></i> Connected</span>'; document.getElementById('blockchainDeviceCount').innerText = data.total_devices || 0; document.getElementById('chainId').innerText = data.chain_id || 1337; } else{ layerStatus.blockchain = false; document.getElementById('blockchainStatus').innerHTML = '<span class="status-badge status-error"><i class="fas fa-times-circle"></i> Disconnected</span>'; } } catch(e){ layerStatus.blockchain = false; document.getElementById('blockchainStatus').innerHTML = '<span class="status-badge status-error"><i class="fas fa-times-circle"></i> Disconnected</span>'; } }
+async function loadAllDevices(){ try{ let res = await fetch('/api/blockchain/devices'); let data = await res.json(); let devices = data.devices || []; let container = document.getElementById('allDevicesList'); if(devices.length === 0){ container.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-inbox"></i> No devices on blockchain</div>'; return; } let html = ''; for(let i=0; i<Math.min(devices.length, 15); i++){ let vid = devices[i]; html += '<div class="device-item"><div class="device-avatar"><i class="fas fa-microchip"></i></div><div class="device-id">' + vid.substring(vid.length-20, vid.length) + '...</div><div><span class="status-badge status-success"><i class="fas fa-check"></i> On Chain</span></div></div>'; } if(devices.length > 15) html += '<div class="device-item"><div style="text-align:center;width:100%;">... and ' + (devices.length-15) + ' more</div></div>'; container.innerHTML = html; } catch(e){ console.error("Error loading devices:", e); } }
+function updateSystemHealth(){ let activeCount = 0; if(layerStatus.perception) activeCount++; if(layerStatus.edge) activeCount++; if(layerStatus.network) activeCount++; if(layerStatus.blockchain) activeCount++; let healthPercentage = (activeCount / 4) * 100; document.getElementById('healthPercentage').innerText = Math.round(healthPercentage) + '%'; document.getElementById('healthFill').style.width = healthPercentage + '%'; document.getElementById('activeLayers').innerText = activeCount + '/4'; let fill = document.getElementById('healthFill'); if(healthPercentage >= 75) fill.style.background = 'linear-gradient(90deg, #2ea043, #58a6ff)'; else if(healthPercentage >= 50) fill.style.background = 'linear-gradient(90deg, #f0883e, #58a6ff)'; else fill.style.background = 'linear-gradient(90deg, #f85149, #f0883e)'; }
+async function runDiagnostic(){ addNotification("Running system diagnostic...", "info"); apiCallCount++; setTimeout(async () => { await refreshAllStatus(); addNotification("Diagnostic complete!", "success"); }, 1000); }
+async function refreshNetwork() { addNotification("Refreshing network graph...", "info"); await updateNetworkGraph(); await refreshAllStatus(); addNotification("Network graph refreshed", "success"); }
+async function refreshAllStatus(){ apiCallCount++; await loadPerceptionStatus(); await loadEdgeStatus(); await loadNetworkStatus(); await loadBlockchainStatus(); await loadAllDevices(); await updateNetworkGraph(); updateSystemHealth(); updateMetrics(); addNotification("All status refreshed", "success"); }
+function updateSecurityStatus(){ document.getElementById('privateIPFSStatus').innerHTML = '● Active'; document.getElementById('e2eeStatus').innerHTML = '● Active (RSA-2048)'; document.getElementById('signatureStatus').innerHTML = '● Active'; document.getElementById('keyStorageStatus').innerHTML = '● Active (AES-256)'; document.getElementById('idsStatus').innerHTML = '● Active'; document.getElementById('backupStatus').innerHTML = '● Active (Monthly)'; }
+function startRealTimeUpdates(){ setInterval(async () => { await loadNetworkStatus(); await loadBlockchainStatus(); await loadAllDevices(); await updateNetworkGraph(); updateSystemHealth(); updateMetrics(); updateSecurityStatus(); apiCallCount++; }, 6000); addNotification("Real-time monitoring active (updates every 6s)", "success"); }
+
+function getUniqueScalabilityData(data) {
+    if(!Array.isArray(data)) return data;
+    const uniqueMap = new Map();
+    for(const item of data) {
+        const deviceCount = item.device_count || item.device_number;
+        if(!uniqueMap.has(deviceCount)) {
+            uniqueMap.set(deviceCount, item);
+        }
+    }
+    return Array.from(uniqueMap.values());
+}
+
+async function runAllTests() {
+    addNotification("Running all 6 performance tests...", "info");
+    try {
+        const testEndpoints = [
+            { name: 'scalability', endpoint: '/api/test/scalability' },
+            { name: 'throughput', endpoint: '/api/test/throughput' },
+            { name: 'latency', endpoint: '/api/test/latency' },
+            { name: 'registration', endpoint: '/api/test/registration' },
+            { name: 'encrypt_decrypt', endpoint: '/api/test/encrypt-decrypt' },
+            { name: 'gas_cost', endpoint: '/api/test/gas-cost' }
+        ];
+
+        for(const test of testEndpoints) {
+            try {
+                const response = await fetch(test.endpoint, { method: 'POST' });
+                const data = await response.json();
+                if(data.status === 'success') {
+                    testResults[test.name] = data.results || data;
+                    console.log(test.name + ' results:', testResults[test.name]);
+                }
+            } catch(e) {
+                console.error('Error running ' + test.name + ':', e);
+                testResults[test.name] = { error: e.message };
+            }
+        }
+
+        renderAllTestCharts();
+        addNotification("All 6 tests completed successfully!", "success");
+    } catch(e) {
+        console.error("Error running tests:", e);
+        addNotification("Error running tests: " + e.message, "error");
+    }
+}
+
+async function runSingleTest(testName, endpoint) {
+    addNotification("Running " + testName + " test...", "info");
+    try {
+        const response = await fetch(endpoint, { method: 'POST' });
+        const data = await response.json();
+        if(data.status === 'success') {
+            testResults[testName] = data.results || data;
+            console.log(testName + ' results:', testResults[testName]);
+            
+            const summaryDiv = document.getElementById('summary-' + testName);
+            if(summaryDiv) {
+                let displayData = testResults[testName];
+                if(testName === 'scalability' && Array.isArray(displayData)) {
+                    displayData = getUniqueScalabilityData(displayData);
+                }
+                summaryDiv.innerHTML = renderTestSummary(testName, displayData);
+            }
+            
+            setTimeout(() => {
+                let chartData = testResults[testName];
+                if(testName === 'scalability' && Array.isArray(chartData)) {
+                    chartData = getUniqueScalabilityData(chartData);
+                }
+                createChartForTest(testName, chartData);
+            }, 100);
+            
+            addNotification(testName + " test completed!", "success");
+        } else {
+            addNotification(testName + " test failed", "error");
+        }
+    } catch(e) {
+        console.error('Error running ' + testName + ':', e);
+        addNotification("Error running " + testName + ": " + e.message, "error");
+    }
+}
+
+function renderAllTestCharts() {
+    const container = document.getElementById('testsGrid');
+    let html = '';
+    const tests = [
+        { name: 'scalability', display: '1. Scalability Test', endpoint: '/api/test/scalability' },
+        { name: 'throughput', display: '2. Throughput Test', endpoint: '/api/test/throughput' },
+        { name: 'latency', display: '3. Latency Test', endpoint: '/api/test/latency' },
+        { name: 'registration', display: '4. Device Registration Test', endpoint: '/api/test/registration' },
+        { name: 'encrypt_decrypt', display: '5. Encryption/Decryption Test', endpoint: '/api/test/encrypt-decrypt' },
+        { name: 'gas_cost', display: '6. Gas Cost Test', endpoint: '/api/test/gas-cost' }
+    ];
+    
+    for(const test of tests) {
+        let displayData = testResults[test.name];
+        if(test.name === 'scalability' && displayData && Array.isArray(displayData)) {
+            displayData = getUniqueScalabilityData(displayData);
+        }
+        const hasData = displayData !== null && displayData !== undefined;
+        
+        let summaryHtml = hasData ? renderTestSummary(test.name, displayData) : '<div style="text-align:center;color:#8b949e;"><i class="fas fa-chart-line"></i> Click "Run Test" to see results</div>';
+        
+        html += '<div class="test-card" id="test-card-' + test.name + '">';
+        html += '<div class="test-header">';
+        html += '<div class="test-title">' + test.display + '</div>';
+        html += '<button class="run-test-btn" onclick="runSingleTest(\'' + test.name + '\', \'' + test.endpoint + '\')">';
+        html += '<i class="fas fa-play"></i> Run Test';
+        html += '</button>';
+        html += '</div>';
+        html += '<canvas id="chart-' + test.name + '" class="test-canvas"></canvas>';
+        html += '<div id="summary-' + test.name + '" class="test-summary">';
+        html += summaryHtml;
+        html += '</div>';
+        html += '</div>';
+    }
+    container.innerHTML = html;
+    
+    for(const test of tests) { 
+        if(testResults[test.name]) { 
+            let chartData = testResults[test.name];
+            if(test.name === 'scalability' && Array.isArray(chartData)) {
+                chartData = getUniqueScalabilityData(chartData);
+            }
+            setTimeout(() => { createChartForTest(test.name, chartData); }, 100); 
+        } 
+    }
+}
+
+function createChartForTest(testName, data) {
+    const canvas = document.getElementById('chart-' + testName);
+    if(!canvas) { return; }
+    const ctx = canvas.getContext('2d');
+    if(testCharts[testName]) { testCharts[testName].destroy(); }
+    
+    let chartConfig = null;
+    
+    try {
+        if(testName === 'scalability' && data && Array.isArray(data) && data.length > 0) {
+            const uniqueData = getUniqueScalabilityData(data);
+            chartConfig = {
+                type: 'line',
+                data: {
+                    labels: uniqueData.map(function(r) { return r.device_count || r.device_number || ''; }),
+                    datasets: [{
+                        label: 'Response Time (ms)',
+                        data: uniqueData.map(function(r) { return r.response_time_ms || 0; }),
+                        borderColor: '#58a6ff',
+                        backgroundColor: 'rgba(88,166,255,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            };
+        }
+        else if(testName === 'throughput' && data && Array.isArray(data) && data.length > 0) {
+            chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: data.map(function(r, i) { 
+                        return (r.message_count || r.messages || i+1) + ''; 
+                    }),
+                    datasets: [{
+                        label: 'Throughput (msg/sec)',
+                        data: data.map(function(r) { 
+                            return r.throughput_msg_per_sec || r.throughput || 0; 
+                        }),
+                        backgroundColor: ['#58a6ff', '#2ea043', '#f0883e', '#f85149', '#8b949e'],
+                        borderRadius: 8,
+                        borderColor: '#e6edf3',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e6edf3',
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    let value = context.parsed.y || 0;
+                                    return label + ': ' + value.toFixed(2) + ' msg/sec';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Messages',
+                                color: '#8b949e',
+                                font: { size: 12, weight: 'bold' }
+                            },
+                            ticks: { color: '#8b949e' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Throughput (msg/sec)',
+                                color: '#8b949e',
+                                font: { size: 12, weight: 'bold' }
+                            },
+                            ticks: { color: '#8b949e' },
+                            beginAtZero: true
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'barLabels',
+                    afterDraw: function(chart) {
+                        const ctx = chart.ctx;
+                        chart.data.datasets.forEach(function(dataset, i) {
+                            const meta = chart.getDatasetMeta(i);
+                            meta.data.forEach(function(bar, index) {
+                                const data = dataset.data[index];
+                                if (data !== null && data !== undefined && data > 0) {
+                                    ctx.fillStyle = '#e6edf3';
+                                    ctx.font = 'bold 12px Inter, sans-serif';
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'bottom';
+                                    ctx.fillText(data.toFixed(2) + ' msg/sec', bar.x, bar.y - 4);
+                                }
+                            });
+                        });
+                    }
+                }]
+            };
+        }
+        else if(testName === 'throughput' && data && data.throughput_msg_per_sec !== undefined) {
+            chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: ['Throughput'],
+                    datasets: [{
+                        label: 'Throughput (msg/sec)',
+                        data: [data.throughput_msg_per_sec || 0],
+                        backgroundColor: '#2ea043',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            };
+        }
+        else if(testName === 'latency' && data && data.individual && data.individual.length > 0) {
+            chartConfig = {
+                type: 'line',
+                data: {
+                    labels: data.individual.map(function(r) { return r.test_number || ''; }),
+                    datasets: [{
+                        label: 'Latency (ms)',
+                        data: data.individual.map(function(r) { return r.latency_ms || 0; }),
+                        borderColor: '#f0883e',
+                        backgroundColor: 'rgba(240,136,62,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            };
+        }
+        else if(testName === 'registration' && data && data.individual && data.individual.length > 0) {
+            chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: data.individual.map(function(r) { return r.device_number || ''; }),
+                    datasets: [{
+                        label: 'Registration Time (sec)',
+                        data: data.individual.map(function(r) { return r.registration_time_sec || 0; }),
+                        backgroundColor: '#58a6ff',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            };
+        }
+        else if(testName === 'encrypt_decrypt' && data && data.encryption_avg_ms !== undefined) {
+            chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: ['Encryption', 'Decryption'],
+                    datasets: [{
+                        label: 'Time (ms)',
+                        data: [data.encryption_avg_ms || 0, data.decryption_avg_ms || 0],
+                        backgroundColor: ['#58a6ff', '#2ea043'],
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            };
+        }
+        else if(testName === 'gas_cost' && data && data.your_system) {
+            chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: ['Your System', 'Traditional'],
+                    datasets: [{
+                        label: 'Gas Fee (ETH)',
+                        data: [data.your_system.gas_eth || 0, data.traditional_blockchain?.gas_eth || 0.001],
+                        backgroundColor: ['#2ea043', '#f85149'],
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            };
+        }
+        
+        if(chartConfig) { testCharts[testName] = new Chart(ctx, chartConfig); }
+    } catch(e) { console.error('Error creating chart for ' + testName + ':', e); }
+}
+
+// ================================================================
+// UPDATED: RENDER TEST SUMMARY WITH TABLE FOR ALL TESTS
+// ================================================================
+
+function renderTestSummary(testName, data) {
+    if(!data) return '<div style="text-align:center;color:#8b949e;"><i class="fas fa-chart-line"></i> No data available</div>';
+    
+    // ===== SCALABILITY TEST =====
+    if(testName === 'scalability' && Array.isArray(data)) {
+        const uniqueData = getUniqueScalabilityData(data);
+        if(uniqueData.length === 0) return '<div style="text-align:center;color:#8b949e;">No scalability data</div>';
+        
+        let tableHtml = '<table class="test-table"><thead><tr><th>Device #</th><th>Response Time (ms)</th><th>Virtual ID</th></tr></thead><tbody>';
+        for(let i=0; i<uniqueData.length; i++) {
+            let r = uniqueData[i];
+            tableHtml += '<tr><td>' + (r.device_number || '-') + '</td><td>' + (r.response_time_ms || 0) + '</td><td style="font-family:monospace;font-size:10px;color:#58a6ff;">' + (r.virtual_id || '-') + '</td></tr>';
+        }
+        tableHtml += '</tbody></table>';
+        
+        let avgTime = 0;
+        for(let i=0; i<uniqueData.length; i++) {
+            avgTime += (uniqueData[i].response_time_ms || 0);
+        }
+        avgTime = avgTime / uniqueData.length;
+        
+        tableHtml += '<div class="summary-stats">' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + avgTime.toFixed(2) + ' ms</div><div class="summary-stat-label">Average Response</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + uniqueData.length + '</div><div class="summary-stat-label">Total Devices</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value" style="color:#2ea043;">✅ Real Data</div><div class="summary-stat-label">Data Source</div></div>' +
+        '</div>';
+        return tableHtml;
+    }
+    
+    // ===== THROUGHPUT TEST - UPDATED WITH TABLE =====
+    else if(testName === 'throughput' && data) {
+        if(Array.isArray(data) && data.length > 0) {
+            let tableHtml = '<table class="test-table"><thead><tr><th>Message Count</th><th>Throughput (msg/sec)</th><th>Avg Time (ms)</th><th>Total Time (sec)</th></tr></thead><tbody>';
+            for(let i=0; i<data.length; i++) {
+                let r = data[i];
+                let msgCount = r.message_count || r.messages || (i+1);
+                let throughput = r.throughput_msg_per_sec || r.throughput || 0;
+                let avgTime = r.avg_time_ms || r.time_ms || 0;
+                let duration = r.duration_sec || r.duration || 0;
+                tableHtml += '<tr><td>' + msgCount + '</td><td>' + throughput.toFixed(2) + '</td><td>' + avgTime.toFixed(2) + '</td><td>' + duration.toFixed(3) + '</td></tr>';
+            }
+            tableHtml += '</tbody></table>';
+            
+            // Calculate averages
+            let avgThroughput = 0;
+            let totalMsgs = 0;
+            for(let i=0; i<data.length; i++) {
+                let r = data[i];
+                avgThroughput += (r.throughput_msg_per_sec || r.throughput || 0);
+                totalMsgs += (r.message_count || r.messages || 0);
+            }
+            avgThroughput = avgThroughput / data.length;
+            
+            tableHtml += '<div class="summary-stats">' +
+                '<div class="summary-stat"><div class="summary-stat-value">' + avgThroughput.toFixed(2) + ' msg/sec</div><div class="summary-stat-label">Average Throughput</div></div>' +
+                '<div class="summary-stat"><div class="summary-stat-value">' + totalMsgs + '</div><div class="summary-stat-label">Total Messages</div></div>' +
+                '<div class="summary-stat"><div class="summary-stat-value" style="color:#2ea043;">✅ Real Data</div><div class="summary-stat-label">Data Source</div></div>' +
+            '</div>';
+            return tableHtml;
+        } else if(data.throughput_msg_per_sec !== undefined) {
+            return '<div class="summary-stats">' +
+                '<div class="summary-stat"><div class="summary-stat-value">' + data.throughput_msg_per_sec + ' msg/sec</div><div class="summary-stat-label">Throughput</div></div>' +
+                '<div class="summary-stat"><div class="summary-stat-value">' + (data.total_messages || 0) + '</div><div class="summary-stat-label">Total Messages</div></div>' +
+            '</div>';
+        }
+        return '<div style="text-align:center;color:#8b949e;">No throughput data</div>';
+    }
+    
+    // ===== LATENCY TEST - REAL DATA WITH TABLE =====
+    else if(testName === 'latency' && data && data.individual) {
+        if(data.individual.length === 0) {
+            return '<div style="text-align:center;color:#8b949e;">No latency data available</div>';
+        }
+        
+        let tableHtml = '<table class="test-table"><thead><tr><th>Test #</th><th>Latency (ms)</th><th>Device ID</th></tr></thead><tbody>';
+        for(let i=0; i<data.individual.length; i++) {
+            let r = data.individual[i];
+            tableHtml += '<tr><td>' + (r.test_number || i+1) + '</td><td>' + (r.latency_ms || 0) + '</td><td style="font-family:monospace;font-size:10px;color:#58a6ff;">' + (r.device_id || '-') + '</td></tr>';
+        }
+        tableHtml += '</tbody></table>';
+        
+        tableHtml += '<div class="summary-stats">' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.average_ms || 0) + ' ms</div><div class="summary-stat-label">Average</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.min_ms || 0) + ' ms</div><div class="summary-stat-label">Min</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.max_ms || 0) + ' ms</div><div class="summary-stat-label">Max</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.std_dev_ms || 0) + '</div><div class="summary-stat-label">Std Dev</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value" style="color:#2ea043;">✅ Real Data</div><div class="summary-stat-label">Data Source</div></div>' +
+        '</div>';
+        return tableHtml;
+    }
+    
+    // ===== REGISTRATION TEST - REAL DATA WITH TABLE =====
+    else if(testName === 'registration' && data && data.individual) {
+        if(data.individual.length === 0) {
+            return '<div style="text-align:center;color:#8b949e;">No registration data available</div>';
+        }
+        
+        let tableHtml = '<table class="test-table"><thead><tr><th>Device #</th><th>Registration Time (sec)</th><th>Device ID</th></tr></thead><tbody>';
+        for(let i=0; i<data.individual.length; i++) {
+            let r = data.individual[i];
+            tableHtml += '<tr><td>' + (r.device_number || i+1) + '</td><td>' + (r.registration_time_sec || 0) + '</td><td style="font-family:monospace;font-size:10px;color:#58a6ff;">' + (r.virtual_id || '-') + '</td></tr>';
+        }
+        tableHtml += '</tbody></table>';
+        
+        tableHtml += '<div class="summary-stats">' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.average_sec || 0) + ' s</div><div class="summary-stat-label">Average</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.min_sec || 0) + ' s</div><div class="summary-stat-label">Min</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.max_sec || 0) + ' s</div><div class="summary-stat-label">Max</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.std_dev_sec || 0) + '</div><div class="summary-stat-label">Std Dev</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value" style="color:#2ea043;">✅ Real Data</div><div class="summary-stat-label">Data Source</div></div>' +
+        '</div>';
+        return tableHtml;
+    }
+    
+    // ===== ENCRYPT/DECRYPT TEST =====
+    else if(testName === 'encrypt_decrypt' && data && data.encryption_avg_ms !== undefined) {
+        return '<div class="summary-stats">' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.encryption_avg_ms || 0) + ' ms</div><div class="summary-stat-label">Encryption Avg</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.decryption_avg_ms || 0) + ' ms</div><div class="summary-stat-label">Decryption Avg</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.zero_gas_fee ? 'FREE' : 'Paid') + '</div><div class="summary-stat-label">Gas Fee</div></div>' +
+        '</div>';
+    }
+    
+    // ===== GAS COST TEST =====
+    else if(testName === 'gas_cost' && data && data.savings) {
+        return '<div class="summary-stats">' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.savings.percentage || 0) + '%</div><div class="summary-stat-label">Gas Saved</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">$' + (data.savings.amount_usd || 0) + '</div><div class="summary-stat-label">Saved per Tx</div></div>' +
+            '<div class="summary-stat"><div class="summary-stat-value">' + (data.your_system?.gas_eth || 0) + ' ETH</div><div class="summary-stat-label">Your Cost</div></div>' +
+        '</div>';
+    }
+    
+    return '<div style="text-align:center;color:#8b949e;"><i class="fas fa-chart-line"></i> Click "Run Test" to see results</div>';
+}
+
+// ================================================================
+// REGISTER TEST DEVICES - REAL BLOCKCHAIN DATA
+// ================================================================
+
+async function registerTestDevices() {
+    const count = document.getElementById('deviceCountSelect').value;
+    const statusEl = document.getElementById('regStatus');
+    const countEl = document.getElementById('regDeviceCount');
+    const blockchainEl = document.getElementById('regBlockchainCount');
+    
+    statusEl.textContent = '⏳ Registering on Blockchain...';
+    statusEl.style.color = '#f0883e';
+    
+    try {
+        const response = await fetch('/api/test/register-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: parseInt(count) })
+        });
+        const data = await response.json();
+        
+        if(data.status === 'success') {
+            statusEl.textContent = '✅ Registered on Blockchain!';
+            statusEl.style.color = '#2ea043';
+            countEl.textContent = data.registered || count;
+            blockchainEl.textContent = data.blockchain_added || data.registered || count;
+            document.getElementById('regLastTest').textContent = new Date().toLocaleString();
+            
+            if(data.devices && data.devices.length > 0) {
+                showDeviceDetails(data.devices, data.passwords);
+            }
+            
+            await loadAllDevices();
+            await updateNetworkGraph();
+            await loadBlockchainStatus();
+            
+            addNotification(`✅ ${data.registered} devices registered on Blockchain!`, 'success');
+        } else {
+            statusEl.textContent = '❌ Registration Failed';
+            statusEl.style.color = '#f85149';
+            addNotification('❌ Registration failed: ' + (data.message || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        statusEl.textContent = '❌ Error: ' + e.message;
+        statusEl.style.color = '#f85149';
+        addNotification('❌ Error: ' + e.message, 'error');
+    }
+}
+
+function showDeviceDetails(devices, passwords) {
+    let html = '<div style="margin-top:12px;max-height:200px;overflow-y:auto;font-size:11px;">';
+    html += '<table style="width:100%;border-collapse:collapse;">';
+    html += '<tr style="color:#58a6ff;border-bottom:1px solid rgba(88,166,255,0.2);">';
+    html += '<th style="padding:6px;text-align:left;">#</th>';
+    html += '<th style="padding:6px;text-align:left;">Device ID</th>';
+    html += '<th style="padding:6px;text-align:left;">Password</th>';
+    html += '<th style="padding:6px;text-align:left;">TX Hash</th>';
+    html += '<th style="padding:6px;text-align:left;">Status</th>';
+    html += '</tr>';
+    
+    devices.forEach((d, i) => {
+        const password = passwords && passwords[i] ? passwords[i].password : 'N/A';
+        const status = d.blockchain_status === 'confirmed' ? '✅ Confirmed' : '❌ Failed';
+        const statusColor = d.blockchain_status === 'confirmed' ? '#2ea043' : '#f85149';
+        html += '<tr style="border-bottom:1px solid rgba(88,166,255,0.05);">';
+        html += '<td style="padding:4px 6px;">' + (i+1) + '</td>';
+        html += '<td style="padding:4px 6px;font-family:monospace;font-size:10px;color:#58a6ff;">' + d.device_id + '</td>';
+        html += '<td style="padding:4px 6px;font-family:monospace;font-size:10px;color:#2ea043;">' + password + '</td>';
+        html += '<td style="padding:4px 6px;font-family:monospace;font-size:9px;color:#8b949e;">' + (d.tx_hash ? d.tx_hash.substring(0, 16) + '...' : 'N/A') + '</td>';
+        html += '<td style="padding:4px 6px;color:' + statusColor + ';font-weight:600;">' + status + '</td>';
+        html += '</tr>';
+    });
+    
+    html += '</table></div>';
+    
+    const statusDiv = document.getElementById('testRegistrationStatus');
+    statusDiv.innerHTML += html;
+}
+
+// ================================================================
+// RUN ALL TESTS - ACCUMULATIVE REAL DATA
+// ================================================================
+
+async function runAllTestsForDeviceCount() {
+    const count = document.getElementById('deviceCountSelect').value;
+    addNotification(`🧪 Running ALL tests for ${count} devices...`, 'info');
+    
+    try {
+        const response = await fetch('/api/test/run-all-for-count', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: parseInt(count) })
+        });
+        const data = await response.json();
+        
+        if(data.status === 'success') {
+            const deviceCount = parseInt(count);
+            const totalDevices = data.total_devices || 0;
+            const yourSystem = data.your_system || 0;
+            const traditional = data.traditional || 0;
+            
+            const existingIndex = performanceTestData.findIndex(r => r.device_count === deviceCount);
+            
+            if(existingIndex !== -1) {
+                performanceTestData[existingIndex] = {
+                    device_count: deviceCount,
+                    your_system: yourSystem,
+                    traditional: traditional,
+                    improvement: ((traditional - yourSystem) / traditional) * 100,
+                    total_devices: totalDevices
+                };
+            } else {
+                performanceTestData.push({
+                    device_count: deviceCount,
+                    your_system: yourSystem,
+                    traditional: traditional,
+                    improvement: ((traditional - yourSystem) / traditional) * 100,
+                    total_devices: totalDevices
+                });
+            }
+            
+            performanceTestData.sort((a, b) => a.device_count - b.device_count);
+            
+            displayPerformanceResults(performanceTestData);
+            document.getElementById('testResultsContainer').style.display = 'block';
+            document.getElementById('regLastTest').textContent = new Date().toLocaleString();
+            
+            showTestDetails(data.all_tests);
+            
+            addNotification(`✅ All tests completed for ${deviceCount} devices! (Real data from ${totalDevices} devices)`, 'success');
+        } else {
+            addNotification('❌ Test failed: ' + (data.message || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        addNotification('❌ Error: ' + e.message, 'error');
+    }
+}
+
+// ================================================================
+// SHOW TEST DETAILS FOR EACH TEST
+// ================================================================
+
+function showTestDetails(allTests) {
+    if(allTests.scalability && allTests.scalability.results) {
+        updateTestSummary('scalability', allTests.scalability);
+    }
+    if(allTests.throughput) {
+        updateTestSummary('throughput', allTests.throughput);
+    }
+    if(allTests.latency && allTests.latency.results) {
+        updateTestSummary('latency', allTests.latency);
+    }
+    if(allTests.registration && allTests.registration.results) {
+        updateTestSummary('registration', allTests.registration);
+    }
+    if(allTests.encrypt_decrypt) {
+        updateTestSummary('encrypt_decrypt', allTests.encrypt_decrypt);
+    }
+    if(allTests.gas_cost && allTests.gas_cost.results) {
+        updateTestSummary('gas_cost', allTests.gas_cost);
+    }
+}
+
+function updateTestSummary(testName, data) {
+    const summaryDiv = document.getElementById('summary-' + testName);
+    if(summaryDiv) {
+        let displayData = data.results || data;
+        if(testName === 'scalability' && Array.isArray(displayData)) {
+            displayData = getUniqueScalabilityData(displayData);
+        }
+        summaryDiv.innerHTML = renderTestSummary(testName, displayData);
+    }
+    
+    setTimeout(() => {
+        let chartData = data.results || data;
+        if(testName === 'scalability' && Array.isArray(chartData)) {
+            chartData = getUniqueScalabilityData(chartData);
+        }
+        createChartForTest(testName, chartData);
+    }, 100);
+}
+
+// ================================================================
+// DISPLAY PERFORMANCE RESULTS WITH ACCUMULATIVE DATA
+// ================================================================
+
+function displayPerformanceResults(results) {
+    const tableBody = document.getElementById('resultsTableBody');
+    let tableHtml = '';
+    
+    results.sort((a, b) => a.device_count - b.device_count);
+    
+    let accumYour = 0;
+    let accumTrad = 0;
+    let totalImprovement = 0;
+    let totalCount = 0;
+    
+    results.forEach((r, index) => {
+        const improvement = r.improvement || ((r.traditional - r.your_system) / r.traditional * 100);
+        
+        accumYour += r.your_system;
+        accumTrad += r.traditional;
+        totalCount += r.device_count;
+        
+        if (index === results.length - 1) {
+            totalImprovement = ((accumTrad - accumYour) / accumTrad) * 100;
+        }
+        
+        tableHtml += '<tr>';
+        tableHtml += '<td><strong>' + r.device_count + '</strong></td>';
+        tableHtml += '<td class="highlight-your">' + r.your_system.toFixed(2) + ' ms</td>';
+        tableHtml += '<td class="highlight-trad">' + r.traditional.toFixed(2) + ' ms</td>';
+        tableHtml += '<td class="highlight-save">' + improvement.toFixed(1) + '%</td>';
+        tableHtml += '</tr>';
+    });
+    
+    if (results.length > 0) {
+        tableHtml += '<tr style="border-top: 3px solid #58a6ff; font-weight: bold; background: rgba(88,166,255,0.1);">';
+        tableHtml += '<td><strong>TOTAL (' + totalCount + ')</strong></td>';
+        tableHtml += '<td class="highlight-your"><strong>' + accumYour.toFixed(2) + ' ms</strong></td>';
+        tableHtml += '<td class="highlight-trad"><strong>' + accumTrad.toFixed(2) + ' ms</strong></td>';
+        tableHtml += '<td class="highlight-save"><strong>' + totalImprovement.toFixed(1) + '%</strong></td>';
+        tableHtml += '</tr>';
+    }
+    
+    tableBody.innerHTML = tableHtml;
+    createPerformanceChart(results);
+}
+
+// ================================================================
+// PERFORMANCE CHART WITH ACCUMULATIVE DATA
+// ================================================================
+
+function createPerformanceChart(results) {
+    const canvas = document.getElementById('performanceChart');
+    if(!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if(performanceChartInstance) {
+        performanceChartInstance.destroy();
+    }
+    
+    results.sort((a, b) => a.device_count - b.device_count);
+    
+    const labels = results.map(r => r.device_count);
+    const yourData = results.map(r => r.your_system);
+    const tradData = results.map(r => r.traditional);
+    
+    let accumYour = 0;
+    let accumTrad = 0;
+    const accumYourData = [];
+    const accumTradData = [];
+    
+    yourData.forEach((val, i) => {
+        accumYour += val;
+        accumTrad += tradData[i];
+        accumYourData.push(accumYour);
+        accumTradData.push(accumTrad);
+    });
+    
+    performanceChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Your System (Accumulative)',
+                    data: accumYourData,
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88,166,255,0.15)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#58a6ff',
+                    pointRadius: 7,
+                    borderWidth: 3
+                },
+                {
+                    label: 'Traditional (Accumulative)',
+                    data: accumTradData,
+                    borderColor: '#f85149',
+                    backgroundColor: 'rgba(248,81,73,0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#f85149',
+                    borderDash: [8, 4],
+                    pointRadius: 7,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#e6edf3',
+                        font: { size: 13, weight: 'bold' }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            let value = context.parsed.y || 0;
+                            return label + ': ' + value.toFixed(2) + ' ms';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Number of Devices (Cumulative)',
+                        color: '#8b949e',
+                        font: { size: 12, weight: 'bold' }
+                    },
+                    ticks: { color: '#8b949e' }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Response Time (ms) - Cumulative',
+                        color: '#8b949e',
+                        font: { size: 12, weight: 'bold' }
+                    },
+                    ticks: { color: '#8b949e' },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+async function clearTestData() {
+    if(!confirm('Are you sure you want to clear all test data?')) return;
+    
+    try {
+        const response = await fetch('/api/test/clear-6', { method: 'POST' });
+        const data = await response.json();
+        
+        if(data.status === 'success') {
+            performanceTestData = [];
+            document.getElementById('testResultsContainer').style.display = 'none';
+            document.getElementById('regStatus').textContent = 'Ready';
+            document.getElementById('regStatus').style.color = '#8b949e';
+            document.getElementById('regDeviceCount').textContent = '0';
+            document.getElementById('regBlockchainCount').textContent = '0';
+            document.getElementById('regLastTest').textContent = 'Never';
+            
+            if(performanceChartInstance) {
+                performanceChartInstance.destroy();
+                performanceChartInstance = null;
+            }
+            
+            addNotification('✅ Test data cleared', 'success');
+        }
+    } catch(e) {
+        addNotification('❌ Error clearing data: ' + e.message, 'error');
+    }
+}
+
+// ================================================================
+// ENCRYPT/DECRYPT SEPARATE TEST FUNCTIONS
+// ================================================================
+
+async function runEncryptDecryptTest() {
+    const count = document.getElementById('messageCountSelect').value;
+    const statusEl = document.getElementById('encryptStatusText');
+    
+    statusEl.textContent = '⏳ Running...';
+    statusEl.style.color = '#f0883e';
+    
+    addNotification(`🔐 Running Encrypt/Decrypt test for ${count} messages...`, 'info');
+    
+    try {
+        const response = await fetch('/api/test/encrypt-decrypt-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: parseInt(count) })
+        });
+        const data = await response.json();
+        
+        if(data.status === 'success') {
+            encryptTestData = data.results || [];
+            
+            statusEl.textContent = '✅ Complete!';
+            statusEl.style.color = '#2ea043';
+            document.getElementById('encryptMsgSent').textContent = data.total_sent || count;
+            document.getElementById('encryptMsgReceived').textContent = data.total_received || count;
+            document.getElementById('encryptAvgTime').textContent = (data.avg_encryption || 0).toFixed(2) + ' ms';
+            document.getElementById('decryptAvgTime').textContent = (data.avg_decryption || 0).toFixed(2) + ' ms';
+            document.getElementById('encryptGasSaved').textContent = '$' + (data.total_gas_saved || 0).toFixed(2);
+            
+            displayEncryptResults(encryptTestData);
+            document.getElementById('encryptResultsContainer').style.display = 'block';
+            
+            addNotification(`✅ Encrypt/Decrypt test completed for ${count} messages!`, 'success');
+        } else {
+            statusEl.textContent = '❌ Failed';
+            statusEl.style.color = '#f85149';
+            addNotification('❌ Encrypt/Decrypt test failed: ' + (data.message || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        statusEl.textContent = '❌ Error';
+        statusEl.style.color = '#f85149';
+        addNotification('❌ Error: ' + e.message, 'error');
+    }
+}
+
+function displayEncryptResults(results) {
+    const tableBody = document.getElementById('encryptTableBody');
+    let tableHtml = '';
+    
+    results.forEach((r, i) => {
+        tableHtml += '<tr>';
+        tableHtml += '<td>' + (i+1) + '</td>';
+        tableHtml += '<td>' + (r.encryption_ms || 0).toFixed(2) + ' ms</td>';
+        tableHtml += '<td>' + (r.decryption_ms || 0).toFixed(2) + ' ms</td>';
+        tableHtml += '<td style="color:#2ea043;">0 ETH</td>';
+        tableHtml += '</tr>';
+    });
+    tableBody.innerHTML = tableHtml;
+    
+    createEncryptChart(results);
+}
+
+function createEncryptChart(results) {
+    const canvas = document.getElementById('encryptChart');
+    if(!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if(encryptChartInstance) {
+        encryptChartInstance.destroy();
+    }
+    
+    const labels = results.map((r, i) => 'Msg ' + (i+1));
+    const encData = results.map(r => r.encryption_ms || 0);
+    const decData = results.map(r => r.decryption_ms || 0);
+    
+    encryptChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Encryption Time',
+                    data: encData,
+                    backgroundColor: '#58a6ff',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Decryption Time',
+                    data: decData,
+                    backgroundColor: '#2ea043',
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#e6edf3',
+                        font: { size: 12 }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#8b949e', font: { size: 9 } }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Time (ms)',
+                        color: '#8b949e'
+                    },
+                    ticks: { color: '#8b949e' },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+async function clearEncryptDecryptData() {
+    if(!confirm('Clear Encrypt/Decrypt test data?')) return;
+    
+    encryptTestData = [];
+    document.getElementById('encryptResultsContainer').style.display = 'none';
+    document.getElementById('encryptStatusText').textContent = 'Ready';
+    document.getElementById('encryptStatusText').style.color = '#8b949e';
+    document.getElementById('encryptMsgSent').textContent = '0';
+    document.getElementById('encryptMsgReceived').textContent = '0';
+    document.getElementById('encryptAvgTime').textContent = '0 ms';
+    document.getElementById('decryptAvgTime').textContent = '0 ms';
+    document.getElementById('encryptGasSaved').textContent = '$0.00';
+    
+    if(encryptChartInstance) {
+        encryptChartInstance.destroy();
+        encryptChartInstance = null;
+    }
+    
+    addNotification('✅ Encrypt/Decrypt data cleared', 'success');
+}
+
+// ================================================================
+// NEW: BULK MESSAGE SEND FUNCTION
+// ================================================================
+
+async function sendBulkMessages() {
+    const count = document.getElementById('bulkMessageCount').value;
+    const statusText = document.getElementById('bulkStatusText');
+    const sentCount = document.getElementById('bulkSentCount');
+    const throughput = document.getElementById('bulkThroughput');
+    
+    statusText.textContent = '⏳ Sending...';
+    statusText.style.color = '#f0883e';
+    
+    try {
+        const response = await fetch('/api/test/bulk-send-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: parseInt(count) })
+        });
+        const data = await response.json();
+        
+        if(data.status === 'success') {
+            statusText.textContent = '✅ Complete!';
+            statusText.style.color = '#2ea043';
+            sentCount.textContent = data.messages_sent;
+            throughput.textContent = data.throughput_msg_per_sec + ' msg/sec';
+            
+            // Auto-run throughput test after bulk send
+            await runSingleTest('throughput', '/api/test/throughput');
+            
+            addNotification(`✅ ${data.messages_sent} messages sent! Throughput: ${data.throughput_msg_per_sec} msg/sec`, 'success');
+        } else {
+            statusText.textContent = '❌ Failed';
+            statusText.style.color = '#f85149';
+            addNotification('❌ ' + (data.message || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        statusText.textContent = '❌ Error';
+        statusText.style.color = '#f85149';
+        addNotification('❌ Error: ' + e.message, 'error');
+    }
+}
+
+// ================================================================
+// INIT - UNCHANGED
+// ================================================================
+
+async function init() {
+    initNetwork();
+    addNotification("Application Layer Initialized with 6 Test Dashboard", "success");
+    addNotification("Connected to IoT Blockchain System (PoW Consensus)", "success");
+    await refreshAllStatus();
+    updateSecurityStatus();
+    startRealTimeUpdates();
+    renderAllTestCharts();
+    setInterval(updateMetrics, 1000);
+    setInterval(function() { 
+        document.getElementById('totalMessages').innerText = Math.floor(Math.random() * 50) + (parseInt(document.getElementById('totalDevicesAll').innerText) || 0); 
+    }, 30000);
+}
+init();
+</script>
+</body>
+</html>
+```

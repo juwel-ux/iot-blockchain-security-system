@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract DeviceRegistry {
+    
+    struct Device {
+        string deviceId;
+        string deviceType;
+        string publicKey;
+        uint256 registeredAt;
+        bool isActive;
+        address owner;
+    }
+    
+    struct Document {
+        string docId;
+        string senderId;
+        string receiverId;
+        string ipfsHash;
+        string encryptedKey;
+        uint256 timestamp;
+        bool isShared;
+    }
+    
+    struct Signal {
+        string deviceId;
+        string signalType;
+        string signalHash;
+        uint256 timestamp;
+    }
+    
+    mapping(string => Device) public devices;
+    mapping(string => Document) public documents;
+    mapping(string => Signal[]) public deviceSignals;
+    
+    string[] public deviceList;
+    string[] public documentList;
+    
+    event DeviceRegistered(string deviceId, string deviceType, uint256 timestamp);
+    event DocumentShared(string docId, string sender, string receiver, uint256 timestamp);
+    event SignalRecorded(string deviceId, string signalType, uint256 timestamp);
+    
+    function registerDevice(
+        string memory _deviceId,
+        string memory _deviceType,
+        string memory _publicKey
+    ) public {
+        require(!devices[_deviceId].isActive, "Device already registered");
+        
+        devices[_deviceId] = Device({
+            deviceId: _deviceId,
+            deviceType: _deviceType,
+            publicKey: _publicKey,
+            registeredAt: block.timestamp,
+            isActive: true,
+            owner: msg.sender
+        });
+        
+        deviceList.push(_deviceId);
+        emit DeviceRegistered(_deviceId, _deviceType, block.timestamp);
+    }
+    
+    function shareDocument(
+        string memory _docId,
+        string memory _senderId,
+        string memory _receiverId,
+        string memory _ipfsHash,
+        string memory _encryptedKey
+    ) public {
+        require(devices[_senderId].isActive, "Sender not registered");
+        require(devices[_receiverId].isActive, "Receiver not registered");
+        
+        documents[_docId] = Document({
+            docId: _docId,
+            senderId: _senderId,
+            receiverId: _receiverId,
+            ipfsHash: _ipfsHash,
+            encryptedKey: _encryptedKey,
+            timestamp: block.timestamp,
+            isShared: true
+        });
+        
+        documentList.push(_docId);
+        emit DocumentShared(_docId, _senderId, _receiverId, block.timestamp);
+    }
+    
+    function recordSignal(
+        string memory _deviceId,
+        string memory _signalType,
+        string memory _signalHash
+    ) public {
+        require(devices[_deviceId].isActive, "Device not registered");
+        
+        Signal memory newSignal = Signal({
+            deviceId: _deviceId,
+            signalType: _signalType,
+            signalHash: _signalHash,
+            timestamp: block.timestamp
+        });
+        
+        deviceSignals[_deviceId].push(newSignal);
+        emit SignalRecorded(_deviceId, _signalType, block.timestamp);
+    }
+    
+    function getDevice(string memory _deviceId) public view returns (
+        string memory, string memory, string memory, uint256, bool, address
+    ) {
+        Device memory d = devices[_deviceId];
+        return (d.deviceId, d.deviceType, d.publicKey, d.registeredAt, d.isActive, d.owner);
+    }
+    
+    function getDocument(string memory _docId) public view returns (
+        string memory, string memory, string memory, string memory, uint256, bool
+    ) {
+        Document memory d = documents[_docId];
+        return (d.docId, d.senderId, d.receiverId, d.ipfsHash, d.timestamp, d.isShared);
+    }
+    
+    function getDeviceSignals(string memory _deviceId) public view returns (Signal[] memory) {
+        return deviceSignals[_deviceId];
+    }
+    
+    function getTotalDevices() public view returns (uint256) {
+        return deviceList.length;
+    }
+    
+    function getTotalDocuments() public view returns (uint256) {
+        return documentList.length;
+    }

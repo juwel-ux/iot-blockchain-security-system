@@ -1,0 +1,352 @@
+<!-- templates/home.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Blockchain Project - Multilayer Secure Communication System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 100%);
+            color: #c9d1d9;
+            min-height: 100vh;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(88,166,255,0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveGrid 20s linear infinite;
+        }
+
+        @keyframes moveGrid {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 60px 20px 30px;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            background: linear-gradient(135deg, #58a6ff 0%, #2ea043 50%, #f0883e 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: none;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: #8b949e;
+            letter-spacing: 1px;
+        }
+
+        .subtitle span {
+            color: #58a6ff;
+        }
+
+        /* Architecture Flow */
+        .architecture-flow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 30px auto;
+            padding: 20px;
+            max-width: 1000px;
+        }
+
+        .flow-node {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 8px 15px;
+            font-size: 0.8rem;
+            color: #8b949e;
+        }
+
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+
+        /* Main Container */
+        .layers-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 30px;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        /* Layer Cards */
+        .layer-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 20px;
+            width: 220px;
+            padding: 25px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .layer-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(88,166,255,0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .layer-card:hover::before {
+            left: 100%;
+        }
+
+        .layer-card:hover {
+            transform: translateY(-10px);
+            border-color: #58a6ff;
+            box-shadow: 0 10px 30px rgba(88,166,255,0.2);
+        }
+
+        /* Layer Colors */
+        .layer-card.perception { border-top: 3px solid #2ea043; }
+        .layer-card.edge { border-top: 3px solid #f0883e; }
+        .layer-card.network { border-top: 3px solid #58a6ff; }
+        .layer-card.blockchain { border-top: 3px solid #d2a8ff; }
+        .layer-card.application { border-top: 3px solid #f85149; }
+
+        /* Icon */
+        .layer-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .layer-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .perception .layer-title { color: #2ea043; }
+        .edge .layer-title { color: #f0883e; }
+        .network .layer-title { color: #58a6ff; }
+        .blockchain .layer-title { color: #d2a8ff; }
+        .application .layer-title { color: #f85149; }
+
+        .layer-desc {
+            font-size: 0.75rem;
+            color: #8b949e;
+            margin-top: 10px;
+            line-height: 1.4;
+        }
+
+        .layer-badge {
+            display: inline-block;
+            background: rgba(88,166,255,0.15);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.7rem;
+            margin-top: 12px;
+            color: #58a6ff;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px auto;
+            padding: 15px 30px;
+            background: #161b22;
+            border-radius: 50px;
+            max-width: 500px;
+            border: 1px solid #30363d;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #2ea043;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #6e7681;
+            font-size: 0.8rem;
+            border-top: 1px solid #30363d;
+            margin-top: 40px;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .layer-card { width: 180px; padding: 20px 15px; }
+            .layer-icon { font-size: 2rem; }
+            .layer-title { font-size: 1rem; }
+            .status-bar { flex-wrap: wrap; gap: 15px; border-radius: 20px; }
+            .architecture-flow { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-animation"></div>
+
+<div class="header">
+    <h1>🔗 Multilayer Blockchain IoT System</h1>
+    <div class="subtitle">A <span>Secure Communication Framework</span> for Internet of Things Devices</div>
+</div>
+
+<!-- Architecture Flow -->
+<div class="architecture-flow">
+    <div class="flow-node">📡 Perception</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">⚡ Edge</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">🌐 Network</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">🔗 Blockchain</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">📱 Application</div>
+</div>
+
+<!-- Layer Cards -->
+<div class="layers-container">
+    
+    <!-- Perception Layer -->
+    <div class="layer-card perception" onclick="location.href='/perception'">
+        <div class="layer-icon">📡</div>
+        <div class="layer-title">Perception Layer</div>
+        <div class="layer-desc">Device Registration • ID Generation • Secret Key • MongoDB Storage</div>
+        <div class="layer-badge">IoT Sensors & Devices</div>
+    </div>
+
+    <!-- Edge Layer -->
+    <div class="layer-card edge" onclick="location.href='/edge'">
+        <div class="layer-icon">⚡</div>
+        <div class="layer-title">Edge Layer</div>
+        <div class="layer-desc">Key Generation • Packet Signing • Virtual Identity • MQTT Gateway</div>
+        <div class="layer-badge">RSA 2048-bit • ZKP</div>
+    </div>
+
+    <!-- Network Layer -->
+    <div class="layer-card network" onclick="location.href='/network'">
+        <div class="layer-icon">🌐</div>
+        <div class="layer-title">Network Layer</div>
+        <div class="layer-desc">Verification • Gossip Protocol • 3-Layer Backup • Peer Sync</div>
+        <div class="layer-badge">Distributed • Decentralized</div>
+    </div>
+
+    <!-- Blockchain Layer (NEW - replacing Cloud) -->
+    <div class="layer-card blockchain" onclick="location.href='/blockchain'">
+        <div class="layer-icon">🔗</div>
+        <div class="layer-title">Blockchain Layer</div>
+        <div class="layer-desc">Immutable Ledger • Smart Contract • Consensus • Ganache</div>
+        <div class="layer-badge">Ethereum • PoA/PBFT</div>
+    </div>
+
+    <!-- Application Layer -->
+    <div class="layer-card application" onclick="location.href='/application'">
+        <div class="layer-icon">📱</div>
+        <div class="layer-title">Application Layer</div>
+        <div class="layer-desc">Dashboard • Monitoring • Analytics • Admin Panel</div>
+        <div class="layer-badge">User Interface</div>
+    </div>
+
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+    <div class="status-item">
+        <div class="status-dot"></div>
+        <span>System Active</span>
+    </div>
+    <div class="status-item">
+        <div class="status-dot" style="background:#58a6ff;"></div>
+        <span>MQTT Connected</span>
+    </div>
+    <div class="status-item">
+        <div class="status-dot" style="background:#d2a8ff;"></div>
+        <span>Blockchain Ready</span>
+    </div>
+    <div class="status-item">
+        <div class="status-dot" style="background:#f0883e;"></div>
+        <span>Edge Gateway Active</span>
+    </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    <p>🔒 A Multilayer Blockchain Based Secure Communication System for IoT Device</p>
+    <p style="font-size: 0.7rem; margin-top: 8px;">Perception → Edge → Network → Blockchain → Application</p>
+</div>
+
+<script>
+    // Optional: Add click sound or analytics
+    document.querySelectorAll('.layer-card').forEach(card => {
+        card.addEventListener('click', () => {
+            console.log(`Navigating to: ${card.querySelector('.layer-title').innerText}`);
+        });
+    });
+</script>
+
+</body>
+</html>

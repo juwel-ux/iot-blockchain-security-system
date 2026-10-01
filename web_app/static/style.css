@@ -1,0 +1,67 @@
+body {
+    font-family: 'Consolas', monospace;
+    background-color: #0f111a;
+    color: #c1c1c1;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    display: flex;
+    padding: 20px;
+    gap: 20px;
+}
+
+/* Left Phase */
+.left-phase {
+    flex: 1;
+    background: #1a1c2b;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+}
+
+.left-phase h2 {
+    color: #00ffcc;
+    border-bottom: 1px solid #00ffcc;
+    padding-bottom: 5px;
+}
+
+.output-box {
+    background: #10121f;
+    border: 1px solid #00ffcc;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 5px;
+}
+
+.output-box p {
+    margin: 5px 0;
+    color: #00ffaa;
+    font-weight: bold;
+}
+
+.send-output {
+    margin-top: 10px;
+    padding: 10px;
+    background: #0a0c15;
+    border: 1px solid #00ffcc;
+    border-radius: 5px;
+    color: #00ff55;
+    font-weight: bold;
+}
+
+/* Right Phase */
+.right-phase {
+    flex: 1;
+    background: #1a1c2b;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0, 255, 200, 0.2);
+}
+
+.right-phase h2 {
+    color: #00ffcc;
+    border-bottom: 1px solid #00ffcc;
+    padding-bottom: 5px;
+}

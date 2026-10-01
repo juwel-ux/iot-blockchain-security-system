@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Edge Layer - Cryptographic Gateway</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 100%);
+    color: #c9d1d9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+}
+
+/* Animated Background */
+.bg-animation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.bg-animation::before {
+    content: '';
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(88,166,255,0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: moveGrid 20s linear infinite;
+}
+
+@keyframes moveGrid {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+}
+
+/* Top Navigation */
+.navbar {
+    background: #161b22;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    border-bottom: 2px solid #58a6ff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.navbar button {
+    padding: 10px 20px;
+    background: #0d1117;
+    color: #58a6ff;
+    border: 1px solid #58a6ff;
+    cursor: pointer;
+    font-size: 15px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.navbar button:hover {
+    background: #58a6ff;
+    color: black;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(88,166,255,0.3);
+}
+
+/* Page Title */
+h1 {
+    text-align: center;
+    color: #58a6ff;
+    margin-top: 30px;
+    font-size: 2.5rem;
+    text-shadow: 0 0 10px rgba(88,166,255,0.3);
+}
+
+/* Layout */
+.container {
+    display: flex;
+    height: calc(100vh - 150px);
+    margin-top: 20px;
+    gap: 20px;
+    padding: 0 20px;
+}
+
+/* Left Panel */
+.left-panel {
+    width: 35%;
+    padding: 25px;
+    background: #161b22;
+    border-radius: 20px;
+    border: 1px solid #30363d;
+    overflow-y: auto;
+}
+
+.left-panel h2 {
+    color: #58a6ff;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+/* Right Panel - Device Queue */
+.right-panel {
+    width: 65%;
+    padding: 25px;
+    background: #161b22;
+    border-radius: 20px;
+    border: 1px solid #30363d;
+    overflow-y: auto;
+}
+
+.right-panel h2 {
+    color: #58a6ff;
+    margin-bottom: 15px;
+}
+
+/* Buttons */
+.control-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    margin: 12px 0;
+    background: #0d1117;
+    color: #58a6ff;
+    border: 1px solid #58a6ff;
+    cursor: pointer;
+    font-size: 15px;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.control-btn:hover {
+    background: #58a6ff;
+    color: black;
+    transform: translateX(5px);
+}
+
+.send-btn {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: white;
+    border: none;
+}
+
+.send-btn:hover {
+    background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
+}
+
+.remove-btn {
+    background: linear-gradient(135deg, #da3633 0%, #f85149 100%);
+    color: white;
+    border: none;
+}
+
+.remove-btn:hover {
+    background: linear-gradient(135deg, #f85149 0%, #ff6b6b 100%);
+}
+
+/* Status Box */
+.status-box {
+    margin-top: 25px;
+    padding: 18px;
+    border: 1px solid #58a6ff;
+    background: #0d1117;
+    font-size: 14px;
+    min-height: 160px;
+    overflow-y: auto;
+    border-radius: 12px;
+}
+
+/* Count Statistics */
+.count-stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    flex: 1;
+    background: #0d1117;
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid #30363d;
+}
+
+.stat-number {
+    font-size: 32px;
+    font-weight: bold;
+    color: #58a6ff;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #8b949e;
+    margin-top: 5px;
+}
+
+/* Device Queue List */
+.device-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-top: 15px;
+}
+
+.device-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.device-card:hover {
+    border-color: #58a6ff;
+    transform: translateX(5px);
+}
+
+.device-card.selected {
+    border-color: #58a6ff;
+    background: #1a1f2e;
+    box-shadow: 0 0 10px rgba(88,166,255,0.2);
+}
+
+.device-card input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    margin-top: 3px;
+}
+
+.device-info {
+    flex: 1;
+}
+
+.device-title {
+    font-weight: bold;
+    color: #58a6ff;
+    margin-bottom: 5px;
+    word-break: break-all;
+}
+
+.device-detail {
+    font-size: 12px;
+    color: #8b949e;
+    margin: 3px 0;
+    font-family: monospace;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 8px;
+}
+
+.status-pending {
+    background: #3d1f1f;
+    color: #f85149;
+}
+
+.status-sent {
+    background: #0d3d1f;
+    color: #2ea043;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.action-buttons .control-btn {
+    flex: 1;
+    margin: 0;
+}
+
+.packet-info {
+    background: #0d1117;
+    padding: 12px;
+    margin-top: 12px;
+    border-left: 3px solid #58a6ff;
+    font-family: monospace;
+    font-size: 13px;
+    border-radius: 8px;
+}
+
+.qr-container {
+    margin-top: 10px;
+    text-align: center;
+    padding: 10px;
+    background: #0d1117;
+    border-radius: 10px;
+}
+
+.qr-code {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
+}
+
+.qr-link {
+    color: #58a6ff;
+    text-decoration: none;
+    font-size: 11px;
+    word-break: break-all;
+}
+
+.qr-link:hover {
+    text-decoration: underline;
+}
+
+.success { color: #2ea043; }
+.warning { color: #f0883e; }
+.error { color: #f85149; }
+.info { color: #58a6ff; }
+
+hr {
+    border-color: #30363d;
+    margin: 15px 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #161b22;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #58a6ff;
+    border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+        height: auto;
+    }
+    .left-panel, .right-panel {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+    .qr-code {
+        width: 80px;
+        height: 80px;
+    }
+}
+</style>
+
+<div class="bg-animation"></div>
+
+</head>
+
+<body>
+
+<!-- Navigation -->
+<div class="navbar">
+    <button onclick="goHome()">🏠 Home</button>
+    <button onclick="goPerception()">📡 Perception Layer</button>
+    <button onclick="goNetwork()">🌐 Network Layer</button>
+    <button onclick="goBlockchain()">🔗 Blockchain Layer</button>
+    <button onclick="goApplication()">📱 Application Layer</button>
+    <button onclick="goBack()">◀ Back</button>
+</div>
+
+<h1>⚡ Edge Layer - Cryptographic Gateway</h1>
+
+<div class="container">
+
+    <!-- LEFT CONTROL PANEL -->
+    <div class="left-panel">
+        <h2>🔐 Edge Controls</h2>
+
+        <button class="control-btn" onclick="receivePacket()">
+            📥 Receive Packet
+        </button>
+
+        <div class="status-box" id="status">
+            <span class="info">● System Waiting...</span>
+        </div>
+
+        <!-- Count Statistics -->
+        <div class="count-stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCount">0</div>
+                <div class="stat-label">Total Devices</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pendingCount">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="sentCount">0</div>
+                <div class="stat-label">Sent to Network</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL - Device Queue -->
+    <div class="right-panel">
+        <h2>📋 Device Registration Queue</h2>
+        <p>Devices waiting to be sent to Network Layer:</p>
+
+        <div id="deviceList" class="device-list">
+            <div style="text-align:center;padding:40px;">📭 No devices in queue</div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="control-btn send-btn" onclick="sendSelectedToNetwork()">
+                📤 Send Selected to Network
+            </button>
+            <button class="control-btn remove-btn" onclick="removeSelectedDevices()">
+                🗑️ Remove Selected
+            </button>
+            <button class="control-btn" onclick="selectAllDevices()">
+                ✓ Select All
+            </button>
+            <button class="control-btn" onclick="deselectAllDevices()">
+                ☐ Deselect All
+            </button>
+            <button class="control-btn" onclick="refreshDeviceQueue()">
+                🔄 Refresh
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ============== Navigation ==============
+function goHome(){ window.location.href="/"; }
+function goPerception(){ window.location.href="/perception"; }
+function goNetwork(){ window.location.href="/network"; }
+function goBlockchain(){ window.location.href="/blockchain"; }
+function goApplication(){ window.location.href="/application"; }
+function goBack(){ history.back(); }
+
+// ============== Device Queue Variables ==============
+let deviceQueue = [];
+let selectedIndices = new Set();
+let currentPacket = null;
+let processedPacketIds = new Set();
+
+// ============== Refresh Device Queue from API ==============
+function refreshDeviceQueue() {
+    console.log("🔄 Refreshing device queue...");
+    fetch('/api/edge/devices')
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            if(data.status === 'success') {
+                deviceQueue = data.devices;
+                updateUI();
+                console.log("✅ Device Queue refreshed:", deviceQueue.length, "devices");
+            } else {
+                console.error("API error:", data);
+            }
+        })
+        .catch(err => console.error('Error refreshing queue:', err));
+}
+
+// ============== Update UI ==============
+function updateUI() {
+    const total = deviceQueue.length;
+    const pending = deviceQueue.filter(d => d.status === 'pending').length;
+    const sent = deviceQueue.filter(d => d.status === 'sent').length;
+    
+    document.getElementById('totalCount').innerText = total;
+    document.getElementById('pendingCount').innerText = pending;
+    document.getElementById('sentCount').innerText = sent;
+    
+    const container = document.getElementById('deviceList');
+    if(deviceQueue.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:40px;">📭 No devices in queue</div>';
+        return;
+    }
+    
+    let html = '';
+    deviceQueue.forEach((device, idx) => {
+        const isSelected = selectedIndices.has(idx);
+        const statusClass = device.status === 'pending' ? 'status-pending' : 'status-sent';
+        const statusText = device.status === 'pending' ? '⏳ Pending' : '✅ Sent';
+        
+        html += `
+            <div class="device-card ${isSelected ? 'selected' : ''}" onclick="toggleSelect(${idx})">
+                <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelect(${idx})">
+                <div class="device-info">
+                    <div class="device-title">🆔 ${device.virtual_id}</div>
+                    <div class="device-detail">📱 Original ID: ${device.device_id}</div>
+                    <div class="device-detail">🔧 Type: ${device.device_type || 'virtual'}</div>
+                    <div class="device-detail">📅 Received: ${device.received_at}</div>
+                    ${device.qr_code ? `
+                        <div class="qr-container">
+                            <img src="data:image/png;base64,${device.qr_code}" class="qr-code">
+                            <br>
+                            <a href="${device.control_link}" target="_blank" class="qr-link">🔗 Control Panel</a>
+                        </div>
+                    ` : ''}
+                    <div><span class="status-badge ${statusClass}">${statusText}</span></div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+// ============== Toggle Select ==============
+function toggleSelect(index) {
+    if(selectedIndices.has(index)) {
+        selectedIndices.delete(index);
+    } else {
+        selectedIndices.add(index);
+    }
+    updateUI();
+}
+
+// ============== Select All ==============
+function selectAllDevices() {
+    for(let i = 0; i < deviceQueue.length; i++) {
+        if(deviceQueue[i].status === 'pending') {
+            selectedIndices.add(i);
+        }
+    }
+    updateUI();
+}
+
+// ============== Deselect All ==============
+function deselectAllDevices() {
+    selectedIndices.clear();
+    updateUI();
+}
+
+// ============== Send Selected to Network ==============
+function sendSelectedToNetwork() {
+    const indices = Array.from(selectedIndices);
+    if(indices.length === 0) {
+        alert('Please select at least one device to send');
+        return;
+    }
+    
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerHTML = `<b>📡 Sending ${indices.length} devices to Network Layer...</b>`;
+    
+    fetch('/api/edge/send-selected', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indices: indices })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'success') {
+            indices.forEach(idx => {
+                if(deviceQueue[idx]) {
+                    deviceQueue[idx].status = 'sent';
+                }
+            });
+            selectedIndices.clear();
+            refreshDeviceQueue();
+            
+            statusDiv.innerHTML = `
+                <b>✅ Sent Successfully!</b><br>
+                Sent: ${data.sent_count} devices to Network Layer<br>
+                Failed: ${data.failed_count}<br>
+                <span class='success'>✓ Devices registered on Network Layer</span>
+            `;
+        } else {
+            statusDiv.innerHTML = `<b>❌ Failed:</b> ${data.message}`;
+        }
+    })
+    .catch(err => {
+        statusDiv.innerHTML = `<b>❌ Error:</b> ${err.message}`;
+    });
+}
+
+// ============== Remove Selected ==============
+function removeSelectedDevices() {
+    const indices = Array.from(selectedIndices);
+    if(indices.length === 0) {
+        alert('Please select at least one device to remove');
+        return;
+    }
+    
+    if(confirm(`Remove ${indices.length} device(s) from queue?`)) {
+        indices.sort((a,b) => b - a);
+        indices.forEach(idx => {
+            deviceQueue.splice(idx, 1);
+        });
+        selectedIndices.clear();
+        refreshDeviceQueue();
+        document.getElementById('status').innerHTML = `<b>✅ Removed ${indices.length} devices from queue</b>`;
+    }
+}
+
+// ============== Receive Packet (UPDATED with better error handling) ==============
+function receivePacket() {
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerHTML = "<b>📡 Checking for new packets...</b>";
+    console.log("🔍 Checking for new packets...");
+    
+    fetch('/api/edge/check-packet')
+        .then(res => {
+            console.log("Response status:", res.status);
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            console.log("API Response:", data);
+            
+            if(data.has_packet && data.packet) {
+                const packetId = data.packet.device_id;
+                console.log("📦 Packet found:", packetId);
+                
+                if(processedPacketIds.has(packetId)) {
+                    statusDiv.innerHTML = `
+                        <b>⚠️ Packet Already Processed</b>
+                        <div class='packet-info'>
+                            📱 Device ID: ${data.packet.device_id}<br>
+                            <span class='warning'>Already in queue!</span>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                processedPacketIds.add(packetId);
+                currentPacket = data.packet;
+                statusDiv.innerHTML = `
+                    <b>✅ Packet Received!</b>
+                    <div class='packet-info'>
+                        📱 Device ID: ${data.packet.device_id}<br>
+                        🔧 Type: ${data.packet.device_type}<br>
+                        ⏰ Timestamp: ${new Date(data.packet.timestamp * 1000).toLocaleString()}
+                    </div>
+                    <span class='success'>✓ Generating cryptographic keys...</span>
+                `;
+                
+                autoGenerateAndAddToQueue();
+            } else {
+                console.log("No packets available");
+                statusDiv.innerHTML = `
+                    <b>⏳ No new packets</b><br>
+                    Please register a device in Perception Layer first.<br>
+                    <span class='warning'>→ Perception Layer → Register Device → Send to Edge Layer</span>
+                `;
+            }
+        })
+        .catch(err => {
+            console.error("Fetch error:", err);
+            statusDiv.innerHTML = `
+                <b>❌ Connection Error</b><br>
+                ${err.message}<br>
+                <span class='warning'>Make sure Flask server is running on port 5000</span>
+            `;
+        });
+}
+
+// ============== Auto Generate Keys ==============
+function autoGenerateAndAddToQueue() {
+    if(!currentPacket) return;
+    
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerHTML = "<b>🔐 Generating cryptographic keys...</b>";
+    
+    fetch('/api/edge/register-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            device_id: currentPacket.device_id,
+            device_type: currentPacket.device_type,
+            timestamp: currentPacket.timestamp,
+            is_blockchain_store: false
+        })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    })
+    .then(result => {
+        if(result.status === 'success') {
+            const existingDevice = deviceQueue.find(d => d.device_id === result.device.device_id);
+            if(existingDevice) {
+                statusDiv.innerHTML = `<b>⚠️ Device Already in Queue!</b>`;
+                return;
+            }
+            
+            const newDevice = {
+                id: Date.now(),
+                device_id: result.device.device_id,
+                virtual_id: result.device.virtual_id,
+                device_type: result.device.device_type,
+                public_key: result.device.public_key.substring(0, 80) + "...",
+                signature: result.device.signature.substring(0, 40) + "...",
+                network_packet: result.network_packet,
+                status: 'pending',
+                received_at: new Date().toLocaleString(),
+                qr_code: result.qr_code,
+                control_link: result.control_link
+            };
+            
+            deviceQueue.push(newDevice);
+            refreshDeviceQueue();
+            
+            statusDiv.innerHTML = `
+                <b>✅ Keys Generated & Added to Queue!</b>
+                <div class='packet-info'>
+                    🆔 Virtual ID: ${result.device.virtual_id}<br>
+                    📱 Device ID: ${result.device.device_id}<br>
+                    <span class='success'>✓ Device added to queue (Pending)</span>
+                </div>
+                ${result.qr_code ? `
+                    <div class="qr-container">
+                        <img src="data:image/png;base64,${result.qr_code}" class="qr-code">
+                        <br>
+                        <a href="${result.control_link}" target="_blank" class="qr-link">🔗 Control Panel Link (after blockchain store)</a>
+                    </div>
+                ` : ''}
+                <span class='warning'>⚠️ Select device and click 'Send Selected to Network'</span>
+            `;
+            currentPacket = null;
+        } else {
+            statusDiv.innerHTML = `<b>❌ Key generation failed:</b> ${result.message}`;
+        }
+    })
+    .catch(err => { 
+        console.error("Key generation error:", err);
+        statusDiv.innerHTML = `<b>❌ Error:</b> ${err.message}`; 
+    });
+}
+
+// ============== Auto Refresh Queue ==============
+setInterval(refreshDeviceQueue, 3000);
+refreshDeviceQueue();
+
+// ============== Auto-check for new packets ==============
+setInterval(() => {
+    fetch('/api/edge/check-packet')
+        .then(res => res.json())
+        .then(data => {
+            if(data.has_packet && data.packet) {
+                const packetId = data.packet.device_id;
+                if(!processedPacketIds.has(packetId)) {
+                    const existingInQueue = deviceQueue.find(d => d.device_id === packetId);
+                    if(!existingInQueue) {
+                        processedPacketIds.add(packetId);
+                        currentPacket = data.packet;
+                        autoGenerateAndAddToQueue();
+                        console.log("✅ Auto-processed new packet:", packetId);
+                    }
+                }
+            }
+        })
+        .catch(err => console.error('Error:', err));
+}, 5000);
+</script>
+
+</body>
+</html>

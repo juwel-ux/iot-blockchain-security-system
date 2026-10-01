@@ -1,0 +1,1485 @@
+# web_app/app.py
+import sys
+import os
+import json
+import threading
+import time
+import uuid
+import hashlib
+import base64
+import zlib
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, jsonify
+from web3 import Web3
+from cryptography.fernet import Fernet
+import jwt
+import qrcode
+from io import BytesIO
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.append(parent_dir)
+
+# ============== COMPRESSION FUNCTIONS ==============
+def compress_encrypted_key(encrypted_key):
+    if not encrypted_key:
+        return encrypted_key
+    decoded = base64.b64decode(encrypted_key)
+    compressed = zlib.compress(decoded, level=9)
+    print(f"   🔍 Size: {len(encrypted_key)} chars → {len(decoded)} bytes → {len(compressed)} bytes")
+    return compressed
+
+def decompress_encrypted_key(compressed_key):
+    if not compressed_key:
+        return compressed_key
+    decompressed = zlib.decompress(compressed_key)
+    return base64.b64encode(decompressed).decode()
+
+# ============== JWT SECRET ==============
+SESSION_SECRET = os.environ.get('SESSION_SECRET', 'nexus-messenger-secret-key-2024')
+active_sessions = {}
+face_storage = {}
+
+# ============== HELPER FUNCTIONS ==============
+def encrypt_private_key_with_password(private_key, password):
+    password = password.strip().lower()
+    key = base64.urlsafe_b64encode(hashlib.sha256(password.encode('utf-8')).digest())
+    cipher = Fernet(key)
+    return cipher.encrypt(private_key.encode('utf-8')).decode()
+
+def decrypt_private_key_with_password(encrypted_private_key, password):
+    password = password.strip().lower()
+    key = base64.urlsafe_b64encode(hashlib.sha256(password.encode('utf-8')).digest())
+    cipher = Fernet(key)
+    return cipher.decrypt(encrypted_private_key.encode('utf-8')).decode()
+
+# ============== SMART CONTRACT CONFIGURATION ==============
+CONTRACT_ADDRESS = "0x9BE05EAf75fd668C0EF5855D10D78e9c5de20426"
+
+CONTRACT_ABI = [
+    {
+        "inputs": [
+            {"internalType": "string", "name": "_deviceId", "type": "string"},
+            {"internalType": "string", "name": "_deviceType", "type": "string"},
+            {"internalType": "string", "name": "_publicKey", "type": "string"},
+            {"internalType": "bytes", "name": "_encryptedPrivateKey", "type": "bytes"}
+        ],
+        "name": "registerDevice",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "string", "name": "_deviceId", "type": "string"}],
+        "name": "getDevice",
+        "outputs": [
+            {"internalType": "string", "name": "", "type": "string"},
+            {"internalType": "string", "name": "", "type": "string"},
+            {"internalType": "string", "name": "", "type": "string"},
+            {"internalType": "bytes", "name": "", "type": "bytes"},
+            {"internalType": "uint256", "name": "", "type": "uint256"},
+            {"internalType": "bool", "name": "", "type": "bool"},
+            {"internalType": "address", "name": "", "type": "address"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getTotalDevices",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [{"internalType": "uint256", "name": "index", "type": "uint256"}],
+        "name": "getDeviceByIndex",
+        "outputs": [
+            {"internalType": "string", "name": "deviceId", "type": "string"},
+            {"internalType": "string", "name": "deviceType", "type": "string"},
+            {"internalType": "string", "name": "publicKey", "type": "string"},
+            {"internalType": "bytes", "name": "encryptedPrivateKey", "type": "bytes"},
+            {"internalType": "uint256", "name": "registeredAt", "type": "uint256"},
+            {"internalType": "bool", "name": "isActive", "type": "bool"},
+            {"internalType": "address", "name": "owner", "type": "address"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
+
+# Network Layer imports
+try:
+    from network_layer.verification import VerificationEngine
+    from network_layer.backup import BackupManager
+    from network_layer.propagation import PropagationManager
+    from network_layer.sync import SyncManager
+    print("Network Layer modules loaded")
+except ImportError as e:
+    print(f"Network Layer modules not yet created: {e}")
+    class VerificationEngine:
+        def verify_complete(self, packet, devices): return True, [], "OK"
+    class BackupManager:
+        def create_backup(self, devices): return "backup_id"
+        def list_backups(self): return []
+        def restore_backup(self, id): return None
+    class PropagationManager:
+        def __init__(self, node_id): self.peer_nodes = []
+        def add_peer(self, url): pass
+        def get_peers(self): return []
+        def broadcast_to_all(self, data): return {'peers_synced': 0}
+        def discover_peers(self, urls): return []
+        def propagate_via_gossip(self, data, ttl=3, source=None): pass
+    class SyncManager:
+        def __init__(self, node_id): self.peers = []
+        def add_peer(self, url): pass
+        def get_peers(self): return []
+        def sync_all_peers(self, getter=None, setter=None): return {'new_devices': 0, 'conflicts': 0}
+        def get_status(self): return {'peer_count': 0, 'last_sync': None}
+        def start_auto_sync(self, getter, setter, interval_seconds=30): pass
+
+# Perception layer imports
+try:
+    from perception_layer.device_selector import register_device
+    from perception_layer.registration_packet import create_registration_packet
+    from perception_layer.mqtt_handler import send_packet
+    print("Perception layer modules loaded")
+except ImportError as e:
+    print(f"Perception layer import error: {e}")
+
+# Edge Layer Import
+try:
+    from edge_layer import edge_gateway
+    print("Edge Gateway loaded")
+except ImportError as e:
+    print(f"Edge Gateway import error: {e}")
+
+# ============== IPFS AND ENCRYPTION IMPORTS ==============
+try:
+    sys.path.append(os.path.join(parent_dir, 'ipfs_handler'))
+    from ipfs_handler_v2 import IPFSHandler
+    from encryption import EncryptionHandler
+    ipfs_handler = IPFSHandler()
+    encryption_handler = EncryptionHandler()
+    communication_enabled = True
+    print("✅ Communication modules loaded")
+except ImportError as e:
+    print(f"⚠️ Communication modules not available: {e}")
+    communication_enabled = False
+    ipfs_handler = None
+    encryption_handler = None
+
+# ============== BLOCKCHAIN CLIENT SETUP ==============
+ganache_client = None
+ganache_connected = False
+contract = None
+try:
+    w3 = Web3(Web3.HTTPProvider('http://127.0.0.1:7545'))
+    if w3.is_connected():
+        ganache_connected = True
+        ganache_client = w3
+        contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
+        print("✅ Ganache Blockchain Client Ready")
+        print(f"   Connected to: http://127.0.0.1:7545")
+        print(f"   Chain ID: {w3.eth.chain_id}")
+        print(f"   Accounts: {len(w3.eth.accounts)}")
+        print(f"   Contract Address: {CONTRACT_ADDRESS}")
+    else:
+        print("⚠️ Ganache not running. Start Ganache first.")
+except Exception as e:
+    print(f"⚠️ Ganache connection failed: {e}")
+
+app = Flask(__name__)
+last_packet = None
+device_info = None
+
+app_status = {
+    "device": False,
+    "key": False,
+    "db": False,
+    "packet": False
+}
+
+# Network Layer Variables
+registered_devices = {}
+
+# Verification Log Storage
+verification_logs = []
+MAX_LOGS = 100
+
+# Blockchain Store Status
+blockchain_stored_devices = set()
+
+# Communication messages storage
+communication_messages = {}
+
+# ============== TWO SEPARATE RECEIVERS ==============
+communication_receiver = None
+communication_receiver_running = False
+registration_receiver = None
+registration_receiver_running = False
+
+# Initialize Network Layer Components
+verification_engine = VerificationEngine()
+backup_manager = BackupManager()
+propagation_manager = PropagationManager(node_id="network_node_1")
+sync_manager = SyncManager(node_id="network_node_1")
+
+def start_background_sync():
+    def get_devices():
+        return registered_devices
+    def set_devices(devices):
+        global registered_devices
+        registered_devices = devices
+    sync_manager.start_auto_sync(get_devices, set_devices, interval_seconds=30)
+    print("🔄 Auto synchronization started (every 30 seconds)")
+
+start_background_sync()
+
+# ============== BLOCKCHAIN HELPER FUNCTIONS ==============
+
+def register_device_on_blockchain(virtual_id, device_type, public_key, encrypted_private_key):
+    global blockchain_stored_devices
+    if not ganache_connected or contract is None:
+        return False, "Blockchain not connected"
+    try:
+        print(f"
+🔗 Registering device on Blockchain...")
+        print(f"   Virtual ID: {virtual_id}")
+        
+        # Fix base64 padding and compress
+        key_str = encrypted_private_key.strip()
+        missing_padding = len(key_str) % 4
+        if missing_padding:
+            key_str += '=' * (4 - missing_padding)
+        
+        decoded_bytes = base64.b64decode(key_str)
+        compressed_bytes = zlib.compress(decoded_bytes, level=9)
+        print(f"   🔍 Original: {len(encrypted_private_key)} chars")
+        print(f"   🔍 Decoded: {len(decoded_bytes)} bytes")
+        print(f"   🔍 Compressed: {len(compressed_bytes)} bytes (saved {len(decoded_bytes) - len(compressed_bytes)} bytes)")
+        
+        account = ganache_client.eth.accounts[0]
+        
+        tx = contract.functions.registerDevice(
+            virtual_id, 
+            device_type, 
+            public_key,
+            compressed_bytes
+        ).transact({
+            'from': account,
+            'gas': 100000000,
+            'gasPrice': 20000000000
+        })
+        
+        receipt = ganache_client.eth.wait_for_transaction_receipt(tx)
+        print(f"✅ Device registered on Blockchain!")
+        print(f"   Transaction Hash: {receipt.transactionHash.hex()}")
+        print(f"   Gas Used: {receipt.gasUsed}")
+        
+        blockchain_stored_devices.add(virtual_id)
+        print(f"   Added to blockchain_stored_devices. Total: {len(blockchain_stored_devices)}")
+        
+        return True, receipt.transactionHash.hex()
+    except Exception as e:
+        print(f"❌ Blockchain registration failed: {e}")
+        return False, str(e)
+
+def get_blockchain_device_count():
+    if not ganache_connected or contract is None:
+        return 0
+    try:
+        count = contract.functions.getTotalDevices().call()
+        print(f"📊 Blockchain device count from contract: {count}")
+        return count
+    except Exception as e:
+        print(f"❌ Error getting device count: {e}")
+        return 0
+
+def get_public_key_from_blockchain(virtual_id):
+    if not ganache_connected or contract is None:
+        return None
+    try:
+        device = contract.functions.getDevice(virtual_id).call()
+        return device[2]
+    except Exception as e:
+        print(f"⚠️ Could not get public key: {e}")
+        return None
+
+def get_encrypted_private_key_from_blockchain(virtual_id):
+    if not ganache_connected or contract is None:
+        return None
+    try:
+        device = contract.functions.getDevice(virtual_id).call()
+        encrypted_key_bytes = device[3]
+        encrypted_key_str = encrypted_key_bytes.decode('utf-8')
+        print(f"✅ Retrieved encrypted key length: {len(encrypted_key_str)}")
+        return encrypted_key_str
+    except Exception as e:
+        print(f"⚠️ Could not get encrypted private key: {e}")
+        return None
+
+# ============== ROUTES ==============
+
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+@app.route('/perception', methods=['GET', 'POST'])
+def perception():
+    global last_packet, device_info, app_status
+    outputs = []
+    send_output = ""
+    show_send_option = False
+
+    if request.method == 'POST':
+        step = request.form.get('step')
+        device_type = request.form.get('device_type')
+        arduino_port = request.form.get('arduino_port')
+
+        if step == 'register':
+            try:
+                if device_type == 'real' and arduino_port:
+                    outputs = register_device(device_type, arduino_port)
+                else:
+                    outputs = register_device(device_type)
+            except Exception as e:
+                outputs = [f"Error: {str(e)}"]
+            
+            show_send_option = True
+            
+            device_id = None
+            for line in outputs:
+                if "Device ID:" in line:
+                    device_id = line.split(": ")[1]
+                    break
+            
+            if device_id:
+                last_packet = create_registration_packet(device_id, device_type)
+                device_info = {"device_id": device_id, "device_type": device_type}
+                app_status["device"] = True
+                app_status["key"] = True
+                app_status["db"] = True
+                print(f"Device registered: {device_id}")
+                print(f"Packet created: {last_packet}")
+
+        elif step == 'send' and last_packet:
+            try:
+                print(f"\nSending packet to Edge Layer...")
+                success = send_packet(last_packet)
+                if success:
+                    send_output = f"""
+                    <div style='background-color: #0d1117; padding: 15px; border-left: 3px solid #2ea043; margin-top: 15px;'>
+                    <span style='color: #2ea043;'>✅ Packet sent successfully to Edge Layer!</span><br><br>
+                    📦 Packet Details:<br>
+                    - Device ID: {last_packet.get('device_id', 'N/A')}<br>
+                    - Device Type: {last_packet.get('device_type', 'N/A')}<br>
+                    - Timestamp: {last_packet.get('timestamp', 'N/A')}<br><br>
+                    🔄 Go to <a href='/edge' style='color: #58a6ff;'>Edge Layer</a> to receive this packet.
+                    </div>
+                    """
+                    app_status["packet"] = True
+                    print("Packet sent successfully!")
+                else:
+                    send_output = f"""
+                    <div style='background-color: #0d1117; padding: 15px; border-left: 3px solid #f85149; margin-top: 15px;'>
+                    <span style='color: #f85149;'>❌ Failed to send packet.</span><br><br>
+                    Make sure MQTT broker is running: sudo service mosquitto start
+                    </div>
+                    """
+                    print("Failed to send packet!")
+            except Exception as e:
+                print(f"Exception: {e}")
+                send_output = f"<div><span style='color: #f85149;'>Error: {str(e)}</span></div>"
+
+    return render_template('perception.html', outputs=outputs, send_output=send_output, show_send_option=show_send_option)
+
+@app.route('/edge')
+def edge_layer():
+    try:
+        packet = edge_gateway.get_last_packet() if hasattr(edge_gateway, 'get_last_packet') else getattr(edge_gateway, 'last_packet', None)
+        return render_template('edge.html', packet=packet)
+    except Exception as e:
+        print(f"Error in edge route: {e}")
+        return render_template('edge.html', packet=None)
+
+@app.route('/network')
+def network_layer():
+    return render_template('network_layer.html')
+
+@app.route('/blockchain')
+def blockchain_layer():
+    return render_template('blockchain_layer.html')
+
+@app.route('/application')
+def application():
+    return render_template('application_layer.html')
+
+@app.route('/app_status')
+def get_status():
+    return jsonify(app_status)
+
+@app.route('/api/check-packet')
+def check_packet():
+    packet = edge_gateway.get_last_packet() if hasattr(edge_gateway, 'get_last_packet') else getattr(edge_gateway, 'last_packet', None)
+    return jsonify({'has_packet': packet is not None, 'packet': packet})
+
+# ============== EDGE LAYER QUEUE APIs ==============
+
+@app.route('/api/edge/check-packet')
+def edge_check_packet():
+    from edge_layer import edge_gateway
+    try:
+        packet = edge_gateway.get_last_packet() if hasattr(edge_gateway, 'get_last_packet') else None
+        return jsonify({'has_packet': packet is not None, 'packet': packet})
+    except Exception as e:
+        return jsonify({'has_packet': False, 'error': str(e)})
+
+@app.route('/api/edge/devices')
+def edge_get_devices():
+    from edge_layer import edge_gateway
+    try:
+        devices = edge_gateway.get_all_devices()
+        return jsonify({'status': 'success', 'devices': devices, 'count': len(devices)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'devices': [], 'message': str(e)})
+
+@app.route('/api/edge/send-selected', methods=['POST'])
+def edge_send_selected():
+    from edge_layer import edge_gateway
+    try:
+        data = request.json
+        indices = data.get('indices', [])
+        all_devices = edge_gateway.get_all_devices()
+        selected_devices = [all_devices[i] for i in indices if i < len(all_devices)]
+        sent_count = 0
+        failed_count = 0
+        for device in selected_devices:
+            if device.get('status') == 'pending':
+                network_packet = device.get('network_packet')
+                if network_packet:
+                    try:
+                        import paho.mqtt.client as mqtt
+                        client = mqtt.Client()
+                        client.connect("localhost", 1883, 60)
+                        client.publish("network/device_registration", json.dumps(network_packet))
+                        client.disconnect()
+                        device['status'] = 'sent'
+                        sent_count += 1
+                        print(f"✅ Sent {device['virtual_id']} to Network Layer")
+                    except Exception as e:
+                        failed_count += 1
+                        print(f"❌ Failed to send {device['virtual_id']}: {e}")
+                else:
+                    failed_count += 1
+        return jsonify({'status': 'success', 'sent_count': sent_count, 'failed_count': failed_count})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/edge/remove-selected', methods=['POST'])
+def edge_remove_selected():
+    from edge_layer import edge_gateway
+    try:
+        data = request.json
+        indices = data.get('indices', [])
+        removed_count = edge_gateway.remove_selected_devices(indices)
+        return jsonify({'status': 'success', 'removed_count': removed_count})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/edge/queue-stats')
+def edge_queue_stats():
+    from edge_layer import edge_gateway
+    try:
+        return jsonify({
+            'status': 'success',
+            'total': edge_gateway.get_device_count(),
+            'pending': edge_gateway.get_pending_count(),
+            'sent': edge_gateway.get_sent_count()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/edge/clear-all', methods=['POST'])
+def edge_clear_all():
+    from edge_layer import edge_gateway
+    try:
+        count = edge_gateway.clear_all_devices()
+        return jsonify({'status': 'success', 'cleared_count': count})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== DEVICE CONTROL PANEL ROUTE ==============
+@app.route('/device/control/<virtual_id>')
+def device_control_panel(virtual_id):
+    print(f"\n🔍 Control Panel Access Request:")
+    print(f"   Virtual ID: {virtual_id}")
+    print(f"   Blockchain stored devices: {list(blockchain_stored_devices)}")
+    
+    if virtual_id not in blockchain_stored_devices:
+        print(f"   ❌ Device NOT found in blockchain_stored_devices!")
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Device Not Found</title>
+            <style>
+                body {{ background: #0d1117; color: #c9d1d9; font-family: monospace; text-align: center; padding: 50px; }}
+                h1 {{ color: #f85149; }}
+                .error {{ border: 1px solid #f85149; padding: 20px; border-radius: 10px; max-width: 600px; margin: 0 auto; }}
+                a {{ color: #58a6ff; }}
+            </style>
+        </head>
+        <body>
+            <div class="error">
+                <h1>❌ Device Not Found on Blockchain</h1>
+                <p><strong>Virtual ID:</strong> {virtual_id}</p>
+                <p>This device is not registered on the blockchain.</p>
+                <p>Only devices stored on blockchain can access the control panel.</p>
+                <hr>
+                <p><a href='/blockchain'>🔗 Go to Blockchain Layer</a> | <a href='/network'>🌐 Go to Network Layer</a></p>
+                <p><small>Make sure to store your device on blockchain first.</small></p>
+            </div>
+        </body>
+        </html>
+        """, 404
+    
+    print(f"   ✅ Device found in blockchain_stored_devices!")
+    
+    device_info = None
+    for vid, dev in registered_devices.items():
+        if vid == virtual_id:
+            device_info = {
+                'virtual_id': vid,
+                'device_id': dev.get('metadata', {}).get('original_device_id', vid),
+                'device_type': dev.get('metadata', {}).get('device_type', 'virtual'),
+                'status': 'active',
+                'received_at': dev.get('registration_time', 'N/A'),
+                'blockchain_status': 'confirmed'
+            }
+            break
+    
+    if not device_info:
+        device_info = {
+            'virtual_id': virtual_id,
+            'device_id': virtual_id,
+            'device_type': 'IoT Device',
+            'status': 'active',
+            'received_at': datetime.now().isoformat(),
+            'blockchain_status': 'confirmed'
+        }
+    
+    return render_template('device_control.html', device=device_info, virtual_id=virtual_id)
+
+# ============== NETWORK LAYER APIs ==============
+
+@app.route('/api/network/status')
+def network_status():
+    return jsonify({
+        'status': 'ok',
+        'total_devices': len(registered_devices),
+        'devices': list(registered_devices.keys()),
+        'details': {vid: {
+            'virtual_id': vid,
+            'device_type': dev.get('metadata', {}).get('device_type', 'N/A'),
+            'registration_time': dev.get('registration_time', 'N/A'),
+            'status': dev.get('status', 'active'),
+            'blockchain_status': dev.get('blockchain_status', 'pending')
+        } for vid, dev in registered_devices.items()},
+        'communication_receiver': communication_receiver_running,
+        'registration_receiver': registration_receiver_running
+    })
+
+# ============== COMMUNICATION RECEIVER ==============
+
+@app.route('/api/network/start-comm-receiver', methods=['POST'])
+def start_comm_receiver():
+    global communication_receiver, communication_receiver_running
+    try:
+        if communication_receiver_running:
+            return jsonify({'status': 'info', 'message': 'Comm receiver already running'})
+        
+        import paho.mqtt.client as mqtt
+        
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                print("✅ COMMUNICATION Receiver Connected")
+                client.subscribe("network/communication")
+                print("📡 Listening on: network/communication (AUTO)")
+            else:
+                print(f"❌ Connection failed: {rc}")
+        
+        def on_message(client, userdata, msg):
+            try:
+                payload = msg.payload.decode()
+                packet = json.loads(payload)
+                print(f"\n📨 [COMM] Message from {packet.get('sender_id', 'N/A')} to {packet.get('receiver_id', 'N/A')}")
+            except Exception as e:
+                print(f"Error: {e}")
+        
+        client = mqtt.Client()
+        client.on_connect = on_connect
+        client.on_message = on_message
+        client.connect("localhost", 1883, 60)
+        client.loop_start()
+        communication_receiver = client
+        communication_receiver_running = True
+        print("\n✅ COMMUNICATION RECEIVER STARTED")
+        return jsonify({'status': 'success', 'running': True})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/network/stop-comm-receiver', methods=['POST'])
+def stop_comm_receiver():
+    global communication_receiver, communication_receiver_running
+    try:
+        if communication_receiver:
+            communication_receiver.loop_stop()
+            communication_receiver.disconnect()
+            communication_receiver = None
+        communication_receiver_running = False
+        return jsonify({'status': 'success', 'running': False})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== REGISTRATION RECEIVER ==============
+
+@app.route('/api/network/start-reg-receiver', methods=['POST'])
+def start_reg_receiver():
+    global registration_receiver, registration_receiver_running
+    try:
+        if registration_receiver_running:
+            return jsonify({'status': 'info', 'message': 'Registration receiver already running'})
+        
+        import paho.mqtt.client as mqtt
+        
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                print("✅ REGISTRATION Receiver Connected")
+                client.subscribe("network/device_registration")
+                print("📡 Listening on: network/device_registration (MANUAL)")
+            else:
+                print(f"❌ Connection failed: {rc}")
+        
+        def on_message(client, userdata, msg):
+            global registered_devices
+            try:
+                payload = msg.payload.decode()
+                packet = json.loads(payload)
+                
+                print(f"\n📨 [REG] Device registration packet received.")
+                print(f"   Virtual ID: {packet.get('virtual_id', 'N/A')}")
+                
+                virtual_id = packet.get('virtual_id')
+                if virtual_id and virtual_id not in registered_devices:
+                    registered_devices[virtual_id] = {
+                        'virtual_id': virtual_id,
+                        'public_key': packet.get('public_key'),
+                        'encrypted_private_key': packet.get('encrypted_private_key'),
+                        'metadata': packet.get('device_metadata', {}),
+                        'signature': packet.get('signature'),
+                        'registration_time': datetime.now().isoformat(),
+                        'status': 'active',
+                        'verified': True,
+                        'blockchain_status': 'pending'
+                    }
+                    print(f"✅ Device registered: {virtual_id}")
+            except Exception as e:
+                print(f"Error: {e}")
+        
+        client = mqtt.Client()
+        client.on_connect = on_connect
+        client.on_message = on_message
+        client.connect("localhost", 1883, 60)
+        client.loop_start()
+        registration_receiver = client
+        registration_receiver_running = True
+        print("\n✅ REGISTRATION RECEIVER STARTED")
+        return jsonify({'status': 'success', 'running': True})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/network/stop-reg-receiver', methods=['POST'])
+def stop_reg_receiver():
+    global registration_receiver, registration_receiver_running
+    try:
+        if registration_receiver:
+            registration_receiver.loop_stop()
+            registration_receiver.disconnect()
+            registration_receiver = None
+        registration_receiver_running = False
+        return jsonify({'status': 'success', 'running': False})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== STORE TO BLOCKCHAIN API ==============
+
+@app.route('/api/network/store-to-blockchain', methods=['POST'])
+def store_to_blockchain():
+    global registration_receiver, registration_receiver_running, blockchain_stored_devices
+    data = request.json
+    selected_devices = data.get('selected_devices', [])
+    
+    if not selected_devices:
+        return jsonify({'status': 'error', 'message': 'No devices selected'}), 400
+    
+    results = []
+    success_count = 0
+    
+    for virtual_id in selected_devices:
+        if virtual_id in registered_devices:
+            device = registered_devices[virtual_id]
+            encrypted_private_key = device.get('encrypted_private_key', '')
+            success, tx_hash = register_device_on_blockchain(
+                virtual_id,
+                device.get('metadata', {}).get('device_type', 'virtual'),
+                device.get('public_key', ''),
+                encrypted_private_key
+            )
+            if success:
+                device['blockchain_status'] = 'confirmed'
+                device['blockchain_tx'] = tx_hash
+                success_count += 1
+                results.append({'virtual_id': virtual_id, 'status': 'success', 'tx_hash': tx_hash})
+                print(f"✅ Device {virtual_id} stored on blockchain")
+            else:
+                results.append({'virtual_id': virtual_id, 'status': 'failed', 'error': tx_hash})
+        else:
+            results.append({'virtual_id': virtual_id, 'status': 'failed', 'error': 'Device not found'})
+    
+    backup_manager.create_backup(registered_devices)
+    blockchain_count = get_blockchain_device_count()
+    
+    if success_count > 0 and registration_receiver_running:
+        try:
+            if registration_receiver:
+                registration_receiver.loop_stop()
+                registration_receiver.disconnect()
+                registration_receiver = None
+            registration_receiver_running = False
+            print("\n🔴 REGISTRATION RECEIVER AUTO-STOPPED after blockchain store!")
+        except Exception as e:
+            print(f"Error stopping registration receiver: {e}")
+    
+    return jsonify({
+        'status': 'success' if success_count > 0 else 'error',
+        'message': f'{success_count} devices stored on blockchain',
+        'total_blockchain_devices': blockchain_count,
+        'results': results
+    })
+
+# ============== RECEIVERS STATUS API ==============
+
+@app.route('/api/network/receivers-status')
+def receivers_status():
+    return jsonify({
+        'communication_receiver': communication_receiver_running,
+        'registration_receiver': registration_receiver_running,
+        'total_devices': len(registered_devices)
+    })
+
+# ============== NETWORK CLEAR APIs ==============
+
+@app.route('/api/network/clear', methods=['POST'])
+def network_clear():
+    global registered_devices
+    cleared_count = len(registered_devices)
+    registered_devices.clear()
+    return jsonify({'status': 'success', 'cleared_count': cleared_count})
+
+@app.route('/api/network/clear-selected', methods=['POST'])
+def network_clear_selected():
+    data = request.json
+    devices_to_remove = data.get('devices', [])
+    
+    if not devices_to_remove:
+        return jsonify({'status': 'error', 'message': 'No devices specified'}), 400
+    
+    removed_count = 0
+    for virtual_id in devices_to_remove:
+        if virtual_id in registered_devices:
+            if registered_devices[virtual_id].get('blockchain_status') == 'confirmed':
+                continue
+            del registered_devices[virtual_id]
+            removed_count += 1
+    
+    backup_manager.create_backup(registered_devices)
+    
+    return jsonify({
+        'status': 'success',
+        'removed_count': removed_count,
+        'message': f'Removed {removed_count} devices'
+    })
+
+# ============== MQTT TEST API ==============
+
+@app.route('/api/network/test-mqtt')
+def test_mqtt():
+    try:
+        import paho.mqtt.client as mqtt
+        client = mqtt.Client()
+        client.connect("localhost", 1883, 5)
+        client.disconnect()
+        return jsonify({'status': 'ok', 'message': 'MQTT broker is reachable'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+# ============== BLOCKCHAIN APIs ==============
+
+@app.route('/api/blockchain/status')
+def blockchain_status():
+    if not ganache_connected or ganache_client is None:
+        return jsonify({'status': 'error', 'message': 'Ganache not connected'})
+    try:
+        return jsonify({
+            'status': 'connected',
+            'chain_id': ganache_client.eth.chain_id,
+            'block_number': ganache_client.eth.block_number,
+            'accounts': len(ganache_client.eth.accounts),
+            'contract_address': CONTRACT_ADDRESS,
+            'total_devices': get_blockchain_device_count()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/blockchain/device-count')
+def blockchain_device_count():
+    count = get_blockchain_device_count()
+    return jsonify({'count': count})
+
+# ============== BLOCKCHAIN DEVICES API ==============
+
+@app.route('/api/blockchain/devices', methods=['GET'])
+def get_blockchain_devices():
+    """Get devices directly from smart contract"""
+    if not ganache_connected or contract is None:
+        return jsonify({'devices': [], 'count': 0, 'error': 'Blockchain not connected'})
+    try:
+        total = contract.functions.getTotalDevices().call()
+        print(f"📊 Total devices in contract: {total}")
+        
+        devices = []
+        device_details = []
+        
+        for i in range(total):
+            try:
+                result = contract.functions.getDeviceByIndex(i).call()
+                virtual_id = result[0]
+                device_type = result[1]
+                public_key = result[2][:50] + "..." if len(result[2]) > 50 else result[2]
+                encrypted_key = result[3].decode('utf-8') if isinstance(result[3], bytes) else str(result[3])[:30]
+                timestamp = result[4]
+                is_active = result[5]
+                owner = result[6]
+                
+                devices.append(virtual_id)
+                device_details.append({
+                    'virtual_id': virtual_id,
+                    'device_type': device_type,
+                    'public_key': public_key,
+                    'encrypted_private_key': encrypted_key[:30] + "..." if len(encrypted_key) > 30 else encrypted_key,
+                    'registration_time': timestamp,
+                    'blockchain_status': 'confirmed' if is_active else 'inactive',
+                    'owner': owner
+                })
+                print(f"   ✅ Device {i}: {virtual_id}")
+            except Exception as e:
+                print(f"   ❌ Error getting device {i}: {e}")
+                continue
+        
+        return jsonify({
+            'status': 'success',
+            'devices': devices,
+            'details': {d['virtual_id']: d for d in device_details},
+            'count': len(devices),
+            'total_in_contract': total
+        })
+    except Exception as e:
+        print(f"Error getting blockchain devices: {e}")
+        return jsonify({'devices': [], 'count': 0, 'error': str(e)})
+
+@app.route('/api/blockchain/sync-devices', methods=['POST'])
+def sync_blockchain_devices():
+    global blockchain_stored_devices
+    
+    if not ganache_connected or contract is None:
+        return jsonify({'status': 'error', 'message': 'Blockchain not connected'}), 400
+    
+    try:
+        total = contract.functions.getTotalDevices().call()
+        print(f"📊 Syncing devices from blockchain... Total in contract: {total}")
+        
+        devices_from_contract = []
+        
+        for i in range(total):
+            try:
+                device = contract.functions.getDeviceByIndex(i).call()
+                virtual_id = device[0]
+                devices_from_contract.append(virtual_id)
+                print(f"   ✅ Found device {i+1}: {virtual_id}")
+            except Exception as e:
+                print(f"   Could not get device at index {i}: {e}")
+                pass
+        
+        blockchain_stored_devices.clear()
+        for vid in devices_from_contract:
+            blockchain_stored_devices.add(vid)
+        
+        print(f"✅ Synced {len(blockchain_stored_devices)} devices to memory")
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Successfully synced {len(blockchain_stored_devices)} devices',
+            'synced_devices': list(blockchain_stored_devices),
+            'count': len(blockchain_stored_devices),
+            'total_in_contract': total
+        })
+    except Exception as e:
+        print(f"❌ Sync error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/blockchain/device/<virtual_id>', methods=['GET'])
+def get_blockchain_device(virtual_id):
+    if not ganache_connected or contract is None:
+        return jsonify({'status': 'error', 'message': 'Blockchain not connected'})
+    try:
+        device = contract.functions.getDevice(virtual_id).call()
+        return jsonify({
+            'status': 'success',
+            'virtual_id': virtual_id,
+            'device_type': device[1],
+            'public_key': device[2][:50] + '...' if device[2] else 'N/A',
+            'timestamp': device[4],
+            'is_active': device[5],
+            'owner': device[6]
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 404
+
+# ============== DATA COMMUNICATION APIs ==============
+
+sent_data_records = []
+
+@app.route('/api/data/send', methods=['POST'])
+def send_data():
+    try:
+        data = request.json
+        sender_id = data.get('sender_id')
+        receiver_ids = data.get('receiver_ids', [])
+        message = data.get('message', '')
+        file_data = data.get('file_data', None)
+        file_name = data.get('file_name', '')
+        file_type = data.get('file_type', 'text')
+        
+        if not sender_id or not receiver_ids:
+            return jsonify({'status': 'error', 'message': 'Sender and receiver(s) required'}), 400
+        
+        results = []
+        success_count = 0
+        
+        for receiver_id in receiver_ids:
+            if receiver_id not in blockchain_stored_devices:
+                results.append({'receiver': receiver_id, 'status': 'failed', 'message': 'Receiver not found on blockchain'})
+                continue
+            
+            receiver_public_key = get_public_key_from_blockchain(receiver_id)
+            
+            if not receiver_public_key:
+                results.append({'receiver': receiver_id, 'status': 'failed', 'message': 'Public key not found'})
+                continue
+            
+            encrypted_data = None
+            if file_data:
+                encrypted_data = encryption_handler.encrypt_with_public_key(file_data, receiver_public_key)
+            else:
+                encrypted_data = encryption_handler.encrypt_with_public_key(message, receiver_public_key)
+            
+            if not encrypted_data:
+                results.append({'receiver': receiver_id, 'status': 'failed', 'message': 'Encryption failed'})
+                continue
+            
+            data_hash = hashlib.sha256(json.dumps(encrypted_data).encode()).hexdigest()
+            
+            ipfs_data = json.dumps({
+                'encrypted_content': encrypted_data['encrypted_message'],
+                'encrypted_key': encrypted_data['encrypted_key'],
+                'sender_id': sender_id,
+                'receiver_id': receiver_id,
+                'timestamp': time.time(),
+                'data_hash': data_hash,
+                'file_name': file_name,
+                'file_type': file_type,
+                'is_file': bool(file_data)
+            })
+            
+            ipfs_result = ipfs_handler.upload_text(ipfs_data)
+            if not ipfs_result:
+                results.append({'receiver': receiver_id, 'status': 'failed', 'message': 'IPFS upload failed'})
+                continue
+            
+            if receiver_id not in communication_messages:
+                communication_messages[receiver_id] = []
+            
+            communication_messages[receiver_id].append({
+                'message_id': str(uuid.uuid4()),
+                'sender_id': sender_id,
+                'receiver_id': receiver_id,
+                'ipfs_cid': ipfs_result['ipfs_cid'],
+                'data_hash': data_hash,
+                'timestamp': time.time(),
+                'delivered': False,
+                'file_name': file_name,
+                'file_type': file_type,
+                'is_file': bool(file_data)
+            })
+            
+            success_count += 1
+            results.append({'receiver': receiver_id, 'status': 'success', 'ipfs_cid': ipfs_result['ipfs_cid']})
+            
+            print(f"\n📨 Data sent:")
+            print(f"   From: {sender_id}")
+            print(f"   To: {receiver_id}")
+            print(f"   IPFS CID: {ipfs_result['ipfs_cid']}")
+            
+            try:
+                import paho.mqtt.client as mqtt
+                mqtt_client = mqtt.Client()
+                mqtt_client.connect("localhost", 1883, 5)
+                mqtt_message = {
+                    "type": "communication",
+                    "sender_id": sender_id,
+                    "receiver_id": receiver_id,
+                    "ipfs_cid": ipfs_result['ipfs_cid'],
+                    "timestamp": time.time(),
+                    "message_preview": message[:50] if message else f"File: {file_name}"
+                }
+                mqtt_client.publish("network/communication", json.dumps(mqtt_message))
+                mqtt_client.disconnect()
+                print(f"📡 MQTT Published to network/communication for {receiver_id}")
+            except Exception as mqtt_err:
+                print(f"⚠️ MQTT Publish failed: {mqtt_err}")
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Data sent to {success_count} of {len(receiver_ids)} receivers',
+            'results': results,
+            'total_sent': success_count
+        })
+    except Exception as e:
+        print(f"Error sending data: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/data/receive/<device_id>', methods=['GET'])
+def receive_data(device_id):
+    try:
+        received = []
+        for msg_list in communication_messages.values():
+            if isinstance(msg_list, list):
+                for msg in msg_list:
+                    if msg.get('receiver_id') == device_id:
+                        received.append(msg)
+        
+        return jsonify({
+            'status': 'success',
+            'messages': received,
+            'count': len(received)
+        })
+    except Exception as e:
+        print(f"Error receiving data: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/data/download/<ipfs_cid>', methods=['GET'])
+def download_data(ipfs_cid):
+    try:
+        ipfs_data = ipfs_handler.download_text(ipfs_cid)
+        if not ipfs_data:
+            return jsonify({'status': 'error', 'message': 'Data not found on IPFS'}), 404
+        
+        data = json.loads(ipfs_data)
+        
+        return jsonify({
+            'status': 'success',
+            'data': data,
+            'is_file': data.get('is_file', False),
+            'file_name': data.get('file_name', ''),
+            'file_type': data.get('file_type', 'text')
+        })
+    except Exception as e:
+        print(f"Error downloading data: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/data/decrypt', methods=['POST'])
+def decrypt_data():
+    try:
+        data = request.json
+        encrypted_message = data.get('encrypted_message')
+        encrypted_key = data.get('encrypted_key')
+        receiver_private_key = data.get('private_key')
+        
+        if not encrypted_message or not encrypted_key:
+            return jsonify({'status': 'error', 'message': 'Missing encrypted data'}), 400
+        
+        decrypted = encryption_handler.decrypt_with_private_key(encrypted_message, encrypted_key, receiver_private_key)
+        
+        return jsonify({
+            'status': 'success',
+            'decrypted_message': decrypted
+        })
+    except Exception as e:
+        print(f"Error decrypting data: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== AUTO DECRYPT APIs ==============
+
+@app.route('/api/auth/session/start', methods=['POST'])
+def start_session():
+    try:
+        data = request.json
+        device_id = data.get('device_id')
+        master_password = data.get('master_password')
+        
+        if not device_id or not master_password:
+            return jsonify({'status': 'error', 'message': 'Device ID and password required'}), 400
+        
+        master_password = master_password.strip().lower()
+        
+        encrypted_private_key = get_encrypted_private_key_from_blockchain(device_id)
+        
+        if encrypted_private_key:
+            try:
+                decrypt_private_key_with_password(encrypted_private_key, master_password)
+                print(f"✅ Password verified for {device_id}")
+            except Exception as e:
+                print(f"❌ Password verification failed: {e}")
+                return jsonify({'status': 'error', 'message': 'Invalid password'}), 401
+        else:
+            if master_password != os.environ.get('MASTER_PASSWORD', 'admin123'):
+                return jsonify({'status': 'error', 'message': 'Invalid password'}), 401
+        
+        token = jwt.encode({
+            'device_id': device_id,
+            'exp': datetime.utcnow() + timedelta(hours=24)
+        }, SESSION_SECRET, algorithm='HS256')
+        
+        active_sessions[device_id] = {
+            'token': token,
+            'expires': (datetime.now() + timedelta(hours=24)).isoformat()
+        }
+        
+        return jsonify({
+            'status': 'success',
+            'token': token,
+            'expires_in': 86400
+        })
+    except Exception as e:
+        print(f"Session start error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/auth/session/verify', methods=['POST'])
+def verify_session():
+    try:
+        data = request.json
+        token = data.get('token')
+        if not token:
+            return jsonify({'status': 'error', 'message': 'Token required'}), 400
+        
+        decoded = jwt.decode(token, SESSION_SECRET, algorithms=['HS256'])
+        return jsonify({'status': 'success', 'valid': True, 'device_id': decoded['device_id']})
+    except jwt.ExpiredSignatureError:
+        return jsonify({'status': 'error', 'valid': False, 'message': 'Token expired'})
+    except jwt.InvalidTokenError:
+        return jsonify({'status': 'error', 'valid': False, 'message': 'Invalid token'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/auth/session/end', methods=['POST'])
+def end_session():
+    try:
+        data = request.json
+        device_id = data.get('device_id')
+        if device_id and device_id in active_sessions:
+            del active_sessions[device_id]
+        return jsonify({'status': 'success', 'message': 'Session ended'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== SECURE DECRYPT API ==============
+
+@app.route('/api/data/decrypt-secure', methods=['POST'])
+def decrypt_data_secure():
+    try:
+        data = request.json
+        message_id = data.get('message_id')
+        encrypted_message = data.get('encrypted_message')
+        encrypted_key = data.get('encrypted_key')
+        requesting_device = data.get('device_id')
+        master_key = data.get('master_key')
+        if master_key:
+            master_key = master_key.strip().lower()
+        session_token = data.get('session_token')
+        
+        print(f"\n🔐 Decryption request for device: {requesting_device}")
+        
+        intended_receiver = None
+        for msg_list in communication_messages.values():
+            if isinstance(msg_list, list):
+                for msg in msg_list:
+                    if msg.get('message_id') == message_id:
+                        intended_receiver = msg.get('receiver_id')
+                        break
+        
+        if not intended_receiver:
+            return jsonify({'status': 'error', 'message': 'Message not found'}), 404
+        
+        if intended_receiver != requesting_device:
+            print(f"🚨 UNAUTHORIZED attempt!")
+            return jsonify({'status': 'unauthorized', 'message': '❌ UNAUTHORIZED!'}), 403
+        
+        encrypted_private_key = get_encrypted_private_key_from_blockchain(requesting_device)
+        
+        if not encrypted_private_key:
+            return jsonify({'status': 'error', 'message': 'Encrypted private key not found'}), 404
+        
+        if not master_key:
+            return jsonify({
+                'status': 'error',
+                'message': 'Master key required',
+                'requires_master_key': True
+            }), 401
+        
+        try:
+            private_key = decrypt_private_key_with_password(encrypted_private_key, master_key)
+            print(f"✅ Private key decrypted")
+        except Exception as e:
+            print(f"❌ Master key decryption failed: {e}")
+            return jsonify({'status': 'error', 'message': 'Invalid master key'}), 401
+        
+        decrypted = encryption_handler.decrypt_with_private_key(
+            encrypted_message,
+            encrypted_key,
+            private_key
+        )
+        
+        if not decrypted:
+            return jsonify({'status': 'error', 'message': 'Decryption failed'}), 500
+        
+        return jsonify({
+            'status': 'success',
+            'decrypted_message': decrypted,
+            'authorized': True
+        })
+    except Exception as e:
+        print(f"Decrypt error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== QR CODE GENERATION ==============
+
+@app.route('/api/device/generate-qr/<virtual_id>', methods=['GET'])
+def generate_device_qr(virtual_id):
+    try:
+        try:
+            device = contract.functions.getDevice(virtual_id).call()
+        except:
+            return jsonify({'status': 'error', 'message': 'Device not found on blockchain'}), 404
+        
+        control_panel_url = f"http://localhost:5000/device/control/{virtual_id}"
+        
+        qr = qrcode.QRCode(version=1, box_size=10, border=4)
+        qr.add_data(control_panel_url)
+        qr.make(fit=True)
+        qr_image = qr.make_image(fill_color="#58a6ff", back_color="#0d1117")
+        buffer = BytesIO()
+        qr_image.save(buffer, format="PNG")
+        qr_code = base64.b64encode(buffer.getvalue()).decode()
+        
+        return jsonify({
+            'status': 'success',
+            'virtual_id': virtual_id,
+            'control_link': control_panel_url,
+            'qr_code': qr_code
+        })
+    except Exception as e:
+        print(f"Error generating QR: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== EDGE LAYER CRYPTO REGISTRATION API ==============
+
+@app.route('/api/edge/register-device', methods=['POST'])
+def edge_register_device():
+    try:
+        data = request.json
+        device_id = data.get('device_id')
+        device_type = data.get('device_type')
+        is_blockchain_store = data.get('is_blockchain_store', False)
+        user_password = data.get('user_password', 'default123')
+        
+        if not device_id:
+            return jsonify({'status': 'error', 'message': 'No device ID'}), 400
+        
+        user_password = user_password.strip().lower()
+        
+        from edge_layer.device_crypto import DeviceCrypto
+        from edge_layer.network_sender import NetworkSender
+        
+        crypto = DeviceCrypto()
+        network_sender = NetworkSender()
+        
+        private_key, public_key = crypto.generate_key_pair(device_id)
+        
+        import time
+        virtual_id = f"VID_{device_type.upper()}_{int(time.time())}_{device_id[-8:]}"
+        
+        encrypted_private_key = encrypt_private_key_with_password(private_key, user_password)
+        print(f"🔐 Private key encrypted for {virtual_id}")
+        
+        device_metadata = {
+            'original_device_id': device_id,
+            'device_type': device_type,
+            'registration_time': data.get('timestamp', time.time()),
+            'edge_gateway': 'gateway_01'
+        }
+        
+        packet_data = {
+            'virtual_id': virtual_id,
+            'public_key': public_key,
+            'device_metadata': device_metadata,
+            'timestamp': time.time()
+        }
+        
+        signature = crypto.sign_packet(device_id, packet_data)
+        
+        network_packet = {
+            'packet_type': 'device_registration',
+            'packet_version': '1.0',
+            'virtual_id': virtual_id,
+            'public_key': public_key,
+            'encrypted_private_key': encrypted_private_key,
+            'device_metadata': device_metadata,
+            'signature': signature,
+            'timestamp': time.time()
+        }
+        
+        qr_code = None
+        control_link = None
+        
+        if is_blockchain_store:
+            control_panel_url = f"http://localhost:5000/device/control/{virtual_id}"
+            qr = qrcode.QRCode(version=1, box_size=10, border=4)
+            qr.add_data(control_panel_url)
+            qr.make(fit=True)
+            qr_image = qr.make_image(fill_color="#58a6ff", back_color="#0d1117")
+            buffer = BytesIO()
+            qr_image.save(buffer, format="PNG")
+            qr_code = base64.b64encode(buffer.getvalue()).decode()
+            control_link = control_panel_url
+        
+        if network_sender.connect_mqtt():
+            success = network_sender.send_registration(network_packet)
+            network_sender.disconnect()
+            
+            if success:
+                registered_devices[virtual_id] = {
+                    'virtual_id': virtual_id,
+                    'device_id': device_id,
+                    'device_type': device_type,
+                    'public_key': public_key,
+                    'encrypted_private_key': encrypted_private_key,
+                    'metadata': device_metadata,
+                    'signature': signature,
+                    'registration_time': datetime.now().isoformat(),
+                    'status': 'active',
+                    'verified': True,
+                    'blockchain_status': 'pending'
+                }
+                
+                return jsonify({
+                    'status': 'success',
+                    'device': {
+                        'device_id': device_id,
+                        'virtual_id': virtual_id,
+                        'public_key': public_key,
+                        'private_key': private_key,
+                        'encrypted_private_key': encrypted_private_key,
+                        'signature': signature
+                    },
+                    'network_packet': network_packet,
+                    'qr_code': qr_code,
+                    'control_link': control_link,
+                    'is_blockchain_store': is_blockchain_store
+                })
+        
+        return jsonify({'status': 'error', 'message': 'Failed to send'}), 500
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ============== Arduino Support APIs ==============
+
+@app.route('/api/serial-ports')
+def get_serial_ports():
+    try:
+        import serial.tools.list_ports
+        ports = [port.device for port in serial.tools.list_ports.comports()]
+        return jsonify(ports)
+    except:
+        return jsonify([])
+
+@app.route('/api/detect-arduino')
+def detect_arduino():
+    try:
+        import serial
+        import serial.tools.list_ports
+        import time
+        ports = serial.tools.list_ports.comports()
+        for port in ports:
+            try:
+                ser = serial.Serial(port.device, 9600, timeout=2)
+                time.sleep(2)
+                ser.write(b"GET_ID\n")
+                time.sleep(1)
+                if ser.in_waiting:
+                    line = ser.readline().decode().strip()
+                    ser.close()
+                    if "Device ID:" in line:
+                        device_id = line.split(":")[1].strip()
+                        return jsonify({'detected': True, 'device_id': device_id, 'port': port.device})
+                ser.close()
+            except:
+                continue
+        return jsonify({'detected': False})
+    except:
+        return jsonify({'detected': False})
+
+@app.route('/api/arduino-test')
+def test_arduino():
+    try:
+        import serial.tools.list_ports
+        ports = serial.tools.list_ports.comports()
+        return jsonify({'status': 'ok', 'ports': [port.device for port in ports]})
+    except:
+        return jsonify({'status': 'error'})
+
+# ============== MAIN ==============
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("🚀 Starting IoT Blockchain Project")
+    print("="*60)
+    print("📍 Access at: http://localhost:5000")
+    print("📡 Perception Layer: /perception")
+    print("⚡ Edge Layer: /edge")
+    print("🌐 Network Layer: /network")
+    print("🔗 Blockchain Layer: /blockchain")
+    print("📱 Application Layer: /application")
+    print("")
+    if ganache_connected:
+        print("✅ Ganache Blockchain: CONNECTED")
+        print(f"   Chain ID: {ganache_client.eth.chain_id}")
+        print(f"   Block: {ganache_client.eth.block_number}")
+        print(f"   Contract: {CONTRACT_ADDRESS}")
+    else:
+        print("⚠️ Ganache Blockchain: NOT CONNECTED")
+        print("   Start Ganache: cd ~/Desktop && ./ganache-2.7.1-linux-x86_64\\(1\\).AppImage --port 7545 --networkId 1337")
+    print("="*60 + "\n")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Auto Store
+auto_store_status.json
+
+# Backups
+backups/
+web_app/network_backups/
+
+# IPFS
+.ipfs/
+
+# Test Results
+web_app/test_results/
+test_results/
+
+# Temporary Files
+web_app/dvda
+web_app/templates/jhbhj
+web_app/yufj
+*.tmp
+*.bak
+
+# Blockchain
+blockchain_layer/artifacts/
+blockchain_layer/cache/
+hardhat/artifacts/
+hardhat/cache/
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/~
