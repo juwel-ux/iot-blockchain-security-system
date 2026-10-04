@@ -51,7 +51,15 @@ blockchain_layer/cache/
 hardhat/artifacts/
 hardhat/cache/
 
+
 # Coverage
 .coverage
 htmlcov/
 .pytest_cache/~
+
+# Binary files / Native libraries
+*.node
+*.so
+*.dll
+*.dylib
+edr-linux-arm64-gnu/
